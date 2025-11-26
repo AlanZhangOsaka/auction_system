@@ -1,0 +1,10 @@
+Flask
+sqlalchemy
+werkzeug
+pywin32
+openpyxl
+Pillow
+opencc
+pypinyin
+reportlab
+sqlalchemy

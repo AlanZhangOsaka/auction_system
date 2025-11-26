@@ -255,7 +255,10 @@ function buildQuery(){
   const dt = (document.getElementById('date_to')?.value || '').trim();
   const only = !!document.getElementById('only-instock')?.checked;
 
-  if (only) params.set('status', '在库');
+  // 只显示在库：按「一级状态=在库」筛选
+  if (only) {
+    params.set('status_group', '在库');
+  }
   if (q) params.set('q', q);
   if (df) params.set('stockin_date_from', df);
   if (dt) params.set('stockin_date_to', dt);
@@ -323,7 +326,8 @@ function applyURLParamsToUI(){
   const q = p.get('q') || p.get('keyword') || '';
   const df = p.get('stockin_date_from') || '';
   const dt = p.get('stockin_date_to') || '';
-  const only = (p.get('status') === '在库');
+  const only = (p.get('status_group') === '在库');
+
 
   const setVal = (id, v)=>{ const el = document.getElementById(id); if (el) el.value = v || ''; };
   setVal('q', q);
@@ -395,7 +399,7 @@ async function fetchFilteredTotal(qs){
 // 仅获取“在库”总数（不受其它筛选影响，后端只返回 total）
 async function fetchInstockTotal(){
   if (TOTAL_INSTOCK_CACHE != null) return TOTAL_INSTOCK_CACHE;
-  const r = await fetch('/api/items?status=' + encodeURIComponent('在库') + '&page=1&page_size=1');
+  const r = await fetch('/api/items?status_group=' + encodeURIComponent('在库') + '&page=1&page_size=1');
   if (!r.ok) throw new Error('统计失败：' + r.status);
   const d = await r.json();
   TOTAL_INSTOCK_CACHE = d.total || 0;

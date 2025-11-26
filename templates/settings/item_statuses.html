@@ -4,19 +4,30 @@
 
 <div class="card">
   <div class="btn-row">
+    <!-- 一级状态切换：在库 / 出库 -->
+    <div id="group-tabs" class="btn-group">
+      <button type="button" class="btn primary" data-group="在库">在库</button>
+      <button type="button" class="btn" data-group="出库">出库</button>
+    </div>
+
+    <div class="spacer"></div>
+
     <button class="btn primary" id="btn-add">添加</button>
     <a class="btn" href="{{ url_for('settings_stockin') }}">返回入库设置</a>
   </div>
 </div>
 
 <div class="card">
-  <div class="card-title">拖动以调整顺序</div>
+  <div class="card-title">
+    <span id="current-group-label">当前一级状态：在库</span>
+    <span style="font-size:12px;color:#888;margin-left:8px;">（拖动行可调整当前一级状态内的顺序）</span>
+  </div>
   <div class="table-wrap">
     <table class="table excel" id="tbl-statuses">
       <thead>
         <tr>
           <th style="width:60px">序号</th>
-          <th>状态</th>
+          <th>二级状态</th>
           <th style="width:160px">操作</th>
         </tr>
       </thead>
@@ -30,7 +41,10 @@
   <div class="modal-inner small">
     <div class="modal-header">新增状态</div>
     <div class="modal-body">
-      <input id="inp-name" class="input" placeholder="例：在库"/>
+      <div style="margin-bottom:6px;font-size:13px;color:#666;">
+        所属一级状态：<span id="add-group-name">在库</span>
+      </div>
+      <input id="inp-name" class="input" placeholder="例：待上拍"/>
       <div id="err-dup" class="error" style="display:none">已存在或无效</div>
     </div>
     <div class="modal-footer">
@@ -45,7 +59,11 @@
   <div class="modal-inner small">
     <div class="modal-header">编辑状态</div>
     <div class="modal-body">
-      <input id="inp-edit-name" class="input" placeholder="例：在库"/>
+      <div style="margin-bottom:6px;font-size:13px;color:#666;">
+        所属一级状态：<span id="edit-group-name">在库</span>
+        <span style="margin-left:6px;color:#999;">（如需更换一级状态，请删除后在目标分组重新添加）</span>
+      </div>
+      <input id="inp-edit-name" class="input" placeholder="例：待上拍"/>
       <div id="err-edit" class="error" style="display:none">已存在或无效</div>
     </div>
     <div class="modal-footer">
@@ -62,6 +80,14 @@
 (function(){
   const TBY = document.getElementById('sortable');
   const btnAdd = document.getElementById('btn-add');
+
+  const groupTabs = document.querySelectorAll('#group-tabs button[data-group]');
+  const currentGroupLabel = document.getElementById('current-group-label');
+  const addGroupName = document.getElementById('add-group-name');
+  const editGroupName = document.getElementById('edit-group-name');
+
+  // 当前一级状态（父级）：在库 / 出库
+  let currentGroup = '在库';
 
   // 新增弹窗
   const dlg = document.getElementById('dlg');
@@ -89,6 +115,37 @@
     toastTimer = setTimeout(()=> toast.classList.remove('show'), 1600);
   }
 
+  // 切换一级状态按钮样式 & 文本
+  function refreshGroupUI(){
+    groupTabs.forEach(btn=>{
+      const g = btn.dataset.group || '';
+      if (g === currentGroup){
+        btn.classList.add('primary');
+      } else {
+        btn.classList.remove('primary');
+      }
+    });
+    if (currentGroupLabel){
+      currentGroupLabel.textContent = '当前一级状态：' + (currentGroup || '未分组');
+    }
+    if (addGroupName){
+      addGroupName.textContent = currentGroup || '未分组';
+    }
+    if (editGroupName){
+      editGroupName.textContent = currentGroup || '未分组';
+    }
+  }
+
+  groupTabs.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const g = btn.dataset.group || '';
+      if (g === currentGroup) return;
+      currentGroup = g;
+      refreshGroupUI();
+      load();
+    });
+  });
+
   let lastOrder = [];
   function getCurrentOrder(){
     return [...TBY.querySelectorAll('tr')].map(tr => tr.dataset.name);
@@ -100,7 +157,10 @@
     const r = await fetch("/api/settings/item_statuses/reorder", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({names: now})  // 不分组
+      body: JSON.stringify({
+        names: now,
+        group: currentGroup || ""
+      })
     });
     const d = await r.json();
     if(d.ok){
@@ -125,8 +185,8 @@
 
   async function load(){
     TBY.innerHTML = "";
-    // 用带 sort 的列表接口
-    const res = await fetch("/api/settings/item_statuses/list");
+    const params = currentGroup ? ("?group=" + encodeURIComponent(currentGroup)) : "";
+    const res = await fetch("/api/settings/item_statuses/list" + params);
     const data = await res.json();
     (data.items||[]).sort((a,b)=>a.sort-b.sort).forEach((it, i)=>{
       TBY.insertAdjacentHTML('beforeend', rowTpl(i+1, it.name));
@@ -190,6 +250,7 @@
     dlg.style.display='flex';
     inp.value = "";
     errDup.style.display='none';
+    addGroupName.textContent = currentGroup || '未分组';
     setTimeout(()=> inp.focus(), 0);
   }
   function closeAdd(){ dlg.style.display='none'; }
@@ -198,16 +259,33 @@
   btnCancel.addEventListener('click', closeAdd);
   btnOK.addEventListener('click', async ()=>{
     const name = (inp.value||"").trim();
-    if(!name){ errDup.textContent="值不能为空"; errDup.style.display='block'; return; }
+    if(!name){
+      errDup.textContent="值不能为空";
+      errDup.style.display='block';
+      return;
+    }
     const r = await fetch("/api/settings/item_statuses_add", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({name})
+      body: JSON.stringify({
+        name,
+        group: currentGroup || ""
+      })
     });
     const d = await r.json();
-    if(d.ok){ closeAdd(); showToast("已添加"); await load(); }
-    else if(d.error==='duplicate'){ errDup.textContent="已存在"; errDup.style.display='block'; }
-    else { errDup.textContent=d.error||"添加失败"; errDup.style.display='block'; }
+    if(d.ok){
+      closeAdd();
+      showToast("已添加");
+      await load();
+    }
+    else if(d.error==='duplicate'){
+      errDup.textContent="已存在";
+      errDup.style.display='block';
+    }
+    else{
+      errDup.textContent=d.error||"添加失败";
+      errDup.style.display='block';
+    }
   });
 
   // 编辑
@@ -216,6 +294,7 @@
     originalName = name || "";
     inpEdit.value = originalName;
     errEdit.style.display = 'none';
+    editGroupName.textContent = currentGroup || '未分组';
     dlgEdit.style.display = 'flex';
     setTimeout(()=> inpEdit.focus(), 0);
   }
@@ -240,8 +319,10 @@
       errEdit.style.display = 'block';
       return;
     }
-    if(newName === originalName){ showToast("未修改"); return; }
-    // 状态改名接口（本项目中该路由接收 old/new）
+    if(newName === originalName){
+      showToast("未修改");
+      return;
+    }
     const r = await fetch("/api/settings/item_statuses", {
       method:"PUT",
       headers:{"Content-Type":"application/json"},
@@ -253,7 +334,7 @@
       const td = editingTr.querySelector('.name');
       if(td) td.textContent = newName;
       closeEdit();
-      lastOrder = getCurrentOrder(); // 刷新缓存
+      lastOrder = getCurrentOrder();
       showToast("已保存");
     }else{
       errEdit.textContent = d.error || "保存失败";
@@ -272,6 +353,7 @@
   inpEdit.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); btnEditOK.click(); }});
 
   // 初始加载
+  refreshGroupUI();
   load();
 })();
 </script>

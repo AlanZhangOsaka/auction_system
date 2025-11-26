@@ -1539,6 +1539,7 @@ def create_app():
             q = (request.args.get("q") or request.args.get("keyword") or "").strip()
             seller_code = request.args.get("seller_code") or None
             status = request.args.get("status") or None
+            status_group = request.args.get("status_group") or None  # 一级状态（在库 / 出库）
             category = request.args.get("category") or None
             # 新增筛选参数（列表页顶栏/表头筛选会用到）
             seller = request.args.get("seller") or None  # 出品人（姓名/代号模糊）
@@ -1565,16 +1566,36 @@ def create_app():
             if seller_code:
                 query = query.filter(Item.seller_code == seller_code)
             # 多个出品人（多选）：seller_codes=CODE1,CODE2,...
+            # 多个出品人（多选）：seller_codes=CODE1,CODE2,...
             if seller_codes:
                 arr = [s.strip().upper() for s in (seller_codes or '').split(',') if s.strip()]
                 if arr:
                     query = query.filter(Item.seller_code.in_(arr))
+
+            # 先按「一级状态」（在库 / 出库）筛选
+            if status_group:
+                from create_database import ItemStatus
+                # 根据二级状态名，关联到 ItemStatus 拿到 group_name
+                query = query.outerjoin(ItemStatus, Item.item_status == ItemStatus.item_status)
+                query = query.filter(ItemStatus.group_name == status_group)
+
+            # 再按「二级状态字符串」筛选
             if status:
-                query = query.filter(Item.item_status == status)
+                s = status.strip()
+                if s == "EMPTY":
+                    # item_status 为空或空字符串
+                    query = query.filter((Item.item_status.is_(None)) | (Item.item_status == ""))
+                elif s == "NON_EMPTY":
+                    # item_status 非空
+                    query = query.filter((Item.item_status.isnot(None)) & (Item.item_status != ""))
+                else:
+                    query = query.filter(Item.item_status == s)
+
             if category == EMPTY:
                 query = query.filter((Item.item_category.is_(None)) | (Item.item_category == ""))
             elif category:
                 query = query.filter(Item.item_category == category)
+
 
             from sqlalchemy import or_, and_
             from datetime import datetime
