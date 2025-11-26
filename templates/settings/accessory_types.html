@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">附属品设置</h2>
+<div class="card">
+  <div class="btn-row">
+    <button class="btn primary" id="btn-add">添加</button>
+    <a class="btn" href="{{ url_for('settings_stockin') }}">返回入库设置</a>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">拖动以调整顺序</div>
+  <div class="table-wrap">
+    <table class="table excel">
+      <thead>
+        <tr>
+          <th style="width:60px">序号</th>
+          <th>附属品</th>
+          <th style="width:160px">操作</th>
+        </tr>
+      </thead>
+      <tbody id="sortable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 新增 -->
+<div class="modal" id="dlg">
+  <div class="modal-inner small">
+    <div class="modal-header">新增附属品</div>
+    <div class="modal-body">
+      <input id="inp-name" class="input" placeholder="例：包袋"/>
+      <div id="err-dup" class="error" style="display:none">已存在</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-cancel">取消</button>
+      <button class="btn primary" id="btn-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑 -->
+<div class="modal" id="dlg-edit">
+  <div class="modal-inner small">
+    <div class="modal-header">编辑附属品</div>
+    <div class="modal-body">
+      <input id="inp-edit-name" class="input" placeholder="例：包袋"/>
+      <div id="err-edit" class="error" style="display:none">已存在或无效</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-edit-cancel">取消</button>
+      <button class="btn primary" id="btn-edit-ok">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" aria-live="polite"></div>
+
+<script>
+(function(){
+  const TBY = document.getElementById('sortable');
+  const btnAdd = document.getElementById('btn-add');
+  const dlg = document.getElementById('dlg');
+  const btnCancel = document.getElementById('btn-cancel');
+  const btnOK = document.getElementById('btn-ok');
+  const inp = document.getElementById('inp-name');
+  const errDup = document.getElementById('err-dup');
+
+  let lastOrder = [];
+  const toast = document.getElementById('toast');
+  let toastTimer=null;
+  function showToast(msg){ toast.textContent=msg||''; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toast.classList.remove('show'),1800); }
+
+  function rowTpl(i, name){
+    return `<tr draggable="true" data-name="${name}">
+      <td class="idx">${i}</td><td class="name">${name}</td>
+      <td><button class="btn mini btn-edit">编辑</button><button class="btn mini danger btn-del">删除</button></td>
+    </tr>`;
+  }
+  function getCurrentOrder(){ return [...TBY.querySelectorAll('tr')].map(tr=>tr.dataset.name); }
+  async function autoSaveOrderIfChanged(){
+    const now = getCurrentOrder();
+    if(JSON.stringify(now)===JSON.stringify(lastOrder)) return;
+    const r = await fetch("/api/settings/accessory_types/reorder",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({names:now})});
+    const d = await r.json();
+    if(d.ok){ lastOrder=now; showToast("已自动保存顺序"); } else alert(d.error||"保存排序失败");
+  }
+
+  async function load(){
+    TBY.innerHTML="";
+    const res = await fetch("/api/settings/accessory_types/list");
+    const data = await res.json();
+    (data.items||[]).sort((a,b)=>a.sort-b.sort).forEach((it,i)=> TBY.insertAdjacentHTML('beforeend', rowTpl(i+1, it.name)));
+    bindRowEvents(); lastOrder=getCurrentOrder();
+  }
+  function bindRowEvents(){
+    TBY.querySelectorAll("tr").forEach(tr=>{
+      tr.addEventListener('dragstart', e=>{ tr.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+      tr.addEventListener('dragend', async ()=>{ tr.classList.remove('dragging'); await autoSaveOrderIfChanged(); });
+    });
+  }
+  TBY.addEventListener('dragover', e=>{
+    e.preventDefault();
+    const dragging=TBY.querySelector('.dragging'); if(!dragging) return;
+    const after=getDragAfter(TBY, e.clientY);
+    if(after==null) TBY.appendChild(dragging); else TBY.insertBefore(dragging, after);
+    refreshIndex();
+  });
+  function getDragAfter(container, y){
+    const els=[...container.querySelectorAll('tr:not(.dragging)')];
+    return els.reduce((c,child)=>{const box=child.getBoundingClientRect(); const offset=y-box.top-box.height/2; if(offset<0&&offset>c.offset) return {offset,element:child}; else return c;},{offset:Number.NEGATIVE_INFINITY}).element;
+  }
+  function refreshIndex(){ TBY.querySelectorAll('.idx').forEach((td,i)=> td.textContent=i+1); }
+
+  // 删除
+  TBY.addEventListener('click', async (e)=>{
+    const btn=e.target.closest('.btn-del'); if(!btn) return;
+    const tr=btn.closest('tr'); const name=tr.dataset.name;
+    if(!confirm("确定删除 "+name+" ?")) return;
+    const r=await fetch("/api/settings/accessory_types",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
+    const d=await r.json();
+    if(d.ok){ tr.remove(); refreshIndex(); } else alert(d.error||"删除失败");
+  });
+
+  // 新增
+  function open(){ dlg.style.display='flex'; inp.value=""; errDup.style.display='none'; setTimeout(()=>inp.focus(),0); }
+  function close(){ dlg.style.display='none'; }
+  btnAdd.addEventListener('click', open);
+  btnCancel.addEventListener('click', close);
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); btnOK.click(); }});
+  dlg.addEventListener('click', e=>{ if(e.target===dlg) close(); });
+  document.addEventListener('keydown', e=>{ if(dlg.style.display==='flex' && e.key==='Escape') close(); });
+  btnOK.addEventListener('click', async ()=>{
+    const name=(inp.value||"").trim(); if(!name) return;
+    const r=await fetch("/api/settings/accessory_types",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
+    const d=await r.json();
+    if(d.ok){ close(); showToast("已添加"); await load(); } else if(d.error==='duplicate'){ errDup.style.display='block'; } else alert(d.error||"添加失败");
+  });
+
+  // 编辑
+  const dlgEdit=document.getElementById('dlg-edit');
+  const inpEdit=document.getElementById('inp-edit-name');
+  const errEdit=document.getElementById('err-edit');
+  const btnEditCancel=document.getElementById('btn-edit-cancel');
+  const btnEditOK=document.getElementById('btn-edit-ok');
+  let editingTr=null, originalName="";
+  function openEdit(name,tr){ editingTr=tr; originalName=name||""; inpEdit.value=originalName; errEdit.style.display='none'; dlgEdit.style.display='flex'; setTimeout(()=>inpEdit.focus(),0); }
+  function closeEdit(){ dlgEdit.style.display='none'; editingTr=null; originalName=""; }
+  TBY.addEventListener('click', e=>{ const b=e.target.closest('.btn-edit'); if(!b) return; const tr=b.closest('tr'); openEdit(tr.dataset.name,tr); });
+  btnEditCancel.addEventListener('click', closeEdit);
+  dlgEdit.addEventListener('click', e=>{ if(e.target===dlgEdit) closeEdit(); });
+  document.addEventListener('keydown', e=>{ if(dlgEdit.style.display==='flex' && e.key==='Escape') closeEdit(); });
+  inpEdit.addEventListener('input', ()=> errEdit.style.display='none');
+  inpEdit.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); btnEditOK.click(); }});
+  btnEditOK.addEventListener('click', async ()=>{
+    if(!editingTr) return;
+    const newName=(inpEdit.value||"").trim();
+    if(!newName){ errEdit.textContent="名称不能为空"; errEdit.style.display='block'; return; }
+    if(newName===originalName){ showToast("未修改"); return; }
+    const r=await fetch("/api/settings/accessory_types",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({old_name:originalName,new_name:newName})});
+    const d=await r.json();
+    if(d.ok){ editingTr.dataset.name=newName; const td=editingTr.querySelector('.name'); if(td) td.textContent=newName; closeEdit(); lastOrder=getCurrentOrder(); showToast("已保存"); }
+    else{ errEdit.textContent=d.error||"保存失败"; errEdit.style.display='block'; }
+  });
+
+  load();
+})();
+</script>
+{% endblock %}

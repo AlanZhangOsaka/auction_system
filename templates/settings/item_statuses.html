@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">物品状态设置（拖拽排序）</h2>
+
+<div class="card">
+  <div class="btn-row">
+    <button class="btn primary" id="btn-add">添加</button>
+    <a class="btn" href="{{ url_for('settings_stockin') }}">返回入库设置</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">拖动以调整顺序</div>
+  <div class="table-wrap">
+    <table class="table excel" id="tbl-statuses">
+      <thead>
+        <tr>
+          <th style="width:60px">序号</th>
+          <th>状态</th>
+          <th style="width:160px">操作</th>
+        </tr>
+      </thead>
+      <tbody id="sortable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 新增弹窗 -->
+<div class="modal" id="dlg" style="display:none">
+  <div class="modal-inner small">
+    <div class="modal-header">新增状态</div>
+    <div class="modal-body">
+      <input id="inp-name" class="input" placeholder="例：在库"/>
+      <div id="err-dup" class="error" style="display:none">已存在或无效</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-cancel">取消</button>
+      <button class="btn primary" id="btn-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal" id="dlg-edit" style="display:none">
+  <div class="modal-inner small">
+    <div class="modal-header">编辑状态</div>
+    <div class="modal-body">
+      <input id="inp-edit-name" class="input" placeholder="例：在库"/>
+      <div id="err-edit" class="error" style="display:none">已存在或无效</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-edit-cancel">取消</button>
+      <button class="btn primary" id="btn-edit-ok">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 轻提示 -->
+<div id="toast" class="toast" aria-live="polite"></div>
+
+<script>
+(function(){
+  const TBY = document.getElementById('sortable');
+  const btnAdd = document.getElementById('btn-add');
+
+  // 新增弹窗
+  const dlg = document.getElementById('dlg');
+  const btnCancel = document.getElementById('btn-cancel');
+  const btnOK = document.getElementById('btn-ok');
+  const inp = document.getElementById('inp-name');
+  const errDup = document.getElementById('err-dup');
+
+  // 编辑弹窗
+  const dlgEdit = document.getElementById('dlg-edit');
+  const inpEdit = document.getElementById('inp-edit-name');
+  const errEdit = document.getElementById('err-edit');
+  const btnEditCancel = document.getElementById('btn-edit-cancel');
+  const btnEditOK = document.getElementById('btn-edit-ok');
+  let editingTr = null;
+  let originalName = "";
+
+  // 轻提示
+  const toast = document.getElementById('toast');
+  let toastTimer = null;
+  function showToast(msg){
+    toast.textContent = msg || '';
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> toast.classList.remove('show'), 1600);
+  }
+
+  let lastOrder = [];
+  function getCurrentOrder(){
+    return [...TBY.querySelectorAll('tr')].map(tr => tr.dataset.name);
+  }
+
+  async function autoSaveOrderIfChanged(){
+    const now = getCurrentOrder();
+    if (JSON.stringify(now) === JSON.stringify(lastOrder)) return;
+    const r = await fetch("/api/settings/item_statuses/reorder", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({names: now})  // 不分组
+    });
+    const d = await r.json();
+    if(d.ok){
+      lastOrder = now;
+      showToast("已自动保存顺序");
+    }else{
+      alert(d.error || "保存排序失败");
+    }
+  }
+
+  function rowTpl(i, name){
+    return `
+      <tr draggable="true" data-name="${name}">
+        <td class="idx">${i}</td>
+        <td class="name">${name}</td>
+        <td>
+          <button class="btn mini btn-edit">编辑</button>
+          <button class="btn mini danger btn-del">删除</button>
+        </td>
+      </tr>`;
+  }
+
+  async function load(){
+    TBY.innerHTML = "";
+    // 用带 sort 的列表接口
+    const res = await fetch("/api/settings/item_statuses/list");
+    const data = await res.json();
+    (data.items||[]).sort((a,b)=>a.sort-b.sort).forEach((it, i)=>{
+      TBY.insertAdjacentHTML('beforeend', rowTpl(i+1, it.name));
+    });
+    bindRowEvents();
+    lastOrder = getCurrentOrder();
+  }
+
+  function bindRowEvents(){
+    TBY.querySelectorAll("tr").forEach(tr=>{
+      tr.addEventListener('dragstart', e=>{
+        tr.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
+      });
+      tr.addEventListener('dragend', async ()=>{
+        tr.classList.remove('dragging');
+        await autoSaveOrderIfChanged();
+      });
+    });
+  }
+
+  // 拖拽排序
+  TBY.addEventListener('dragover', e=>{
+    e.preventDefault();
+    const dragging = TBY.querySelector('.dragging');
+    if(!dragging) return;
+    const after = getDragAfter(TBY, e.clientY);
+    if(after == null) TBY.appendChild(dragging);
+    else TBY.insertBefore(dragging, after);
+    refreshIndex();
+  });
+  function getDragAfter(container, y){
+    const els = [...container.querySelectorAll('tr:not(.dragging)')];
+    return els.reduce((closest, child)=>{
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height/2;
+      if(offset < 0 && offset > closest.offset) return {offset, element: child};
+      else return closest;
+    }, {offset: Number.NEGATIVE_INFINITY}).element;
+  }
+  function refreshIndex(){ TBY.querySelectorAll('.idx').forEach((td, i)=> td.textContent = i+1); }
+
+  // 删除
+  TBY.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('.btn-del');
+    if(!btn) return;
+    const tr = btn.closest('tr');
+    const name = tr.dataset.name;
+    if(!confirm("确定删除 "+ name +" ?")) return;
+    const r = await fetch("/api/settings/item_statuses_delete", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({name})
+    });
+    const d = await r.json();
+    if(d.ok){ tr.remove(); refreshIndex(); showToast("已删除"); }
+    else alert(d.error || "删除失败");
+  });
+
+  // 新增
+  function openAdd(){
+    dlg.style.display='flex';
+    inp.value = "";
+    errDup.style.display='none';
+    setTimeout(()=> inp.focus(), 0);
+  }
+  function closeAdd(){ dlg.style.display='none'; }
+
+  btnAdd.addEventListener('click', openAdd);
+  btnCancel.addEventListener('click', closeAdd);
+  btnOK.addEventListener('click', async ()=>{
+    const name = (inp.value||"").trim();
+    if(!name){ errDup.textContent="值不能为空"; errDup.style.display='block'; return; }
+    const r = await fetch("/api/settings/item_statuses_add", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({name})
+    });
+    const d = await r.json();
+    if(d.ok){ closeAdd(); showToast("已添加"); await load(); }
+    else if(d.error==='duplicate'){ errDup.textContent="已存在"; errDup.style.display='block'; }
+    else { errDup.textContent=d.error||"添加失败"; errDup.style.display='block'; }
+  });
+
+  // 编辑
+  function openEdit(name, tr){
+    editingTr = tr;
+    originalName = name || "";
+    inpEdit.value = originalName;
+    errEdit.style.display = 'none';
+    dlgEdit.style.display = 'flex';
+    setTimeout(()=> inpEdit.focus(), 0);
+  }
+  function closeEdit(){
+    dlgEdit.style.display = 'none';
+    editingTr = null;
+    originalName = "";
+  }
+
+  TBY.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.btn-edit');
+    if(!btn) return;
+    const tr = btn.closest('tr');
+    openEdit(tr.dataset.name, tr);
+  });
+  btnEditCancel.addEventListener('click', closeEdit);
+  btnEditOK.addEventListener('click', async ()=>{
+    if(!editingTr) return;
+    const newName = (inpEdit.value||"").trim();
+    if(!newName){
+      errEdit.textContent = "值不能为空";
+      errEdit.style.display = 'block';
+      return;
+    }
+    if(newName === originalName){ showToast("未修改"); return; }
+    // 状态改名接口（本项目中该路由接收 old/new）
+    const r = await fetch("/api/settings/item_statuses", {
+      method:"PUT",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({old: originalName, new: newName})
+    });
+    const d = await r.json();
+    if(d.ok){
+      editingTr.dataset.name = newName;
+      const td = editingTr.querySelector('.name');
+      if(td) td.textContent = newName;
+      closeEdit();
+      lastOrder = getCurrentOrder(); // 刷新缓存
+      showToast("已保存");
+    }else{
+      errEdit.textContent = d.error || "保存失败";
+      errEdit.style.display = 'block';
+    }
+  });
+
+  // 弹窗增强：遮罩/ESC/Enter
+  dlg.addEventListener('click', (e)=>{ if(e.target === dlg) closeAdd(); });
+  dlgEdit.addEventListener('click', (e)=>{ if(e.target === dlgEdit) closeEdit(); });
+  document.addEventListener('keydown', (e)=>{
+    if(dlg.style.display === 'flex' && e.key === 'Escape') closeAdd();
+    if(dlgEdit.style.display === 'flex' && e.key === 'Escape') closeEdit();
+  });
+  inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); btnOK.click(); }});
+  inpEdit.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); btnEditOK.click(); }});
+
+  // 初始加载
+  load();
+})();
+</script>
+{% endblock %}

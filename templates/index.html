@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>主界面</h1>
+<p>从上方导航进入各模块。以下为建议开发顺序：基础数据 → 入库与在库 → 拍卖会制作 → 图片管理 → 账单 → 返品与出库。</p>
+
+<section class="cards">
+  <a class="card" href="{{ url_for('inventory_inbound') }}">
+    <h3>在库管理 - 入库</h3>
+    <p>批次与物品录入（占位页）</p>
+  </a>
+  <a class="card" href="{{ url_for('inventory_list') }}">
+    <h3>在库管理 - 在库查询/修改</h3>
+    <p>类表格编辑、图片预览、日志（占位页）</p>
+  </a>
+    <a class="card" href="{{ url_for('batches_index') }}">
+    <h3>在库管理 - 批次修改</h3>
+    <p>批次列表、物品管理与编辑</p>
+  </a>
+
+  <a class="card" href="{{ url_for('inventory_outbound') }}">
+    <h3>在库管理 - 出库</h3>
+    <p>通过返品单出库（占位页）</p>
+  </a>
+  <a class="card" href="{{ url_for('auctions_build') }}">
+    <h3>拍卖会制作</h3>
+    <p>分专场、LOT、导出上传Excel、通知书（占位页）</p>
+  </a>
+  <a class="card" href="{{ url_for('auctions_images') }}">
+    <h3>日常图片管理</h3>
+    <p>单反、修图、手机图登记与管理（占位页）</p>
+  </a>
+  <a class="card" href="{{ url_for('auctions_billing') }}">
+    <h3>账单制作</h3>
+    <p>成交登记、买家信息、生成PDF（占位页）</p>
+  </a>
+  <a class="card" href="{{ url_for('auctions_returns') }}">
+    <h3>返品单制作</h3>
+    <p>按出品人生成，支持部分返品（占位页）</p>
+  </a>
+  <a class="card" href="{{ url_for('sellers_index') }}">
+    <h3>出品人信息管理</h3>
+    <p>出品人增删改查（占位页）</p>
+  </a>
+  <a class="card" href="{{ url_for('buyers_index') }}">
+    <h3>买方信息管理</h3>
+    <p>买家增删改查（占位页）</p>
+  </a>
+</section>
+{% endblock %}

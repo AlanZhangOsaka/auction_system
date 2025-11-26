@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">出品人信息管理</h2>
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">出品人列表</h3>
+    <a class="btn primary" href="{{ url_for('sellers_new') }}">＋ 新增出品人</a>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table excel" id="tbl">
+      <thead>
+        <tr>
+          <th>出品人序号</th>
+          <th>出品人姓名</th>
+          <th>卖方佣金</th>
+          <th>违约金比例</th>
+          <th>图录费</th>
+          <th>可抵税</th>
+          <th>联系方式</th>
+          <th style="width:120px">操作</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function fmtPercent(v){
+  if(v===null || v===undefined || v==='') return '';
+  const num = Number(v);
+  if (isNaN(num)) return '';
+  return (num*100).toFixed(2).replace(/\.?0+$/,'') + '%';
+}
+
+async function loadSellers(){
+  const res = await fetch('/api/sellers');
+  const data = await res.json();
+  const tbody = document.querySelector('#tbl tbody');
+  tbody.innerHTML = '';
+  data.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.seller_code||''}</td>
+      <td>${r.seller_name||''}</td>
+      <td>${fmtPercent(r.seller_percent)}</td>
+      <td>${fmtPercent(r.seller_penalty_ratio)}</td>
+      <td>${r.is_catalog_fee_required?'是':'否'}</td>
+      <td>${r.is_tax_deductible?'是':'否'}</td>
+      <td>${r.seller_phone||''}</td>
+      <td class="actions">
+        <a class="btn sm" href="/sellers/${encodeURIComponent(r.seller_code)}/edit">详情与修改</a>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+loadSellers();
+</script>
+{% endblock %}

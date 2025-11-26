@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">新增出品人</h2>
+
+<div class="card">
+  <div class="form-vertical">
+    <div class="row">
+      <label>出品人序号 (自动生成)
+        <input id="f_code" class="input" readonly>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>姓名 (seller_name)
+        <input id="f_name" class="input" placeholder="必填">
+      </label>
+    </div>
+
+    <div class="row">
+      <label>卖方佣金
+        <div class="input-percent">
+          <input id="f_percent" type="number" class="input" min="0" max="100" step="0.01" placeholder="0~100，支持小数">
+          <span>%</span>
+        </div>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>违约金比例
+        <div class="input-percent">
+          <input id="f_penalty" type="number" class="input" min="0" max="100" step="0.01" placeholder="0~100，支持小数">
+          <span>%</span>
+        </div>
+      </label>
+    </div>
+
+    <div class="row">
+      <label class="inline">
+        <input id="f_cf" type="checkbox"> 图录费
+      </label>
+    </div>
+
+    <div class="row">
+      <label class="inline">
+        <input id="f_tax" type="checkbox"> 可抵税
+      </label>
+    </div>
+
+    <div class="row">
+      <label>登録番号
+        <input id="f_taxcode" class="input">
+      </label>
+    </div>
+
+    <div class="row">
+      <label>付款账户
+        <input id="f_account" class="input">
+      </label>
+    </div>
+
+    <div class="row">
+      <label>联系方式
+        <input id="f_phone" class="input">
+      </label>
+    </div>
+
+    <div class="row">
+      <label>地址
+        <textarea id="f_addr" class="textarea" rows="2"></textarea>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>备注
+        <textarea id="f_notes" class="textarea" rows="2"></textarea>
+      </label>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn primary" onclick="save()">保存</button>
+      <a class="btn" href="{{ url_for('sellers_index') }}">返回列表</a>
+    </div>
+  </div>
+</div>
+
+<script>
+async function fetchNextCode(){
+  const r = await fetch('/api/sellers/next-code');
+  const data = await r.json();
+  f_code.value = data.next_code || '';
+}
+
+function readPercent(el){
+  const v = el.value.trim();
+  if(v==='') return null;
+  if(!/^\d+(\.\d+)?$/.test(v)) return NaN;  // 支持小数
+  const n = parseFloat(v);
+  if(n<0 || n>100) return NaN;
+  return n;
+}
+
+async function save(){
+  const code = f_code.value.trim();
+  const name = f_name.value.trim();
+  if(!code || !name){ alert('出品人序号与姓名为必填'); return; }
+
+  const sp = readPercent(f_percent);
+  const pr = readPercent(f_penalty);
+  if(Number.isNaN(sp)){ alert('卖方佣金必须是0~100之间的数字，可带小数'); return; }
+  if(Number.isNaN(pr)){ alert('违约金比例必须是0~100之间的数字，可带小数'); return; }
+
+  // 转小数再入库（0~1）
+  const payload = {
+    seller_code: code,
+    seller_name: name,
+    seller_percent: sp===null ? null : sp/100,
+    seller_penalty_ratio: pr===null ? null : pr/100,
+    is_catalog_fee_required: f_cf.checked,
+    is_tax_deductible: f_tax.checked,
+    seller_tax_code: f_taxcode.value || null,
+    seller_payment_account: f_account.value || null,
+    seller_phone: f_phone.value || null,
+    seller_address: f_addr.value || null,
+    seller_notes: f_notes.value || null
+  };
+
+  const res = await fetch('/api/sellers', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  });
+  const d = await res.json();
+  if(!res.ok){ alert('保存失败：'+(d.error || res.status)); return; }
+  alert('保存成功');
+  location.href = "{{ url_for('sellers_index') }}";
+}
+
+fetchNextCode();
+</script>
+{% endblock %}

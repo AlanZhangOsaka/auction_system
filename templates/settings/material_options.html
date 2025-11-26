@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">材质选项</h2>
+<div class="card">
+  <div class="btn-row">
+    <select id="sel-group" class="input" style="width:200px">
+      <option>颜色</option>
+      <option>材质</option>
+      <option>形制</option>
+    </select>
+    <button class="btn primary" id="btn-add">添加</button>
+    <button class="btn" id="btn-save">保存顺序</button>
+    <a class="btn" href="{{ url_for('settings_stockin') }}">返回入库设置</a>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">拖动以调整顺序</div>
+  <div class="table-wrap">
+    <table class="table excel" id="tbl-mat">
+      <thead>
+        <tr>
+          <th style="width:60px">序号</th>
+          <th>名称</th>
+          <th style="width:160px">操作</th>
+        </tr>
+      </thead>
+      <tbody id="sortable"></tbody>
+    </table>
+  </div>
+</div>
+<div class="modal" id="dlg" style="display:none">
+  <div class="modal-inner small">
+    <div class="modal-header">新增选项</div>
+    <div class="modal-body">
+      <input id="inp-name" class="input" placeholder="名称"/>
+      <div id="err-dup" class="error" style="display:none">已存在</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-cancel">取消</button>
+      <button class="btn primary" id="btn-ok">确定</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const TBY = document.getElementById('sortable');
+  const btnAdd = document.getElementById('btn-add');
+  const btnSave = document.getElementById('btn-save');
+  const selGroup = document.getElementById('sel-group');
+  const dlg = document.getElementById('dlg');
+  const btnCancel = document.getElementById('btn-cancel');
+  const btnOK = document.getElementById('btn-ok');
+  const inp = document.getElementById('inp-name');
+  const errDup = document.getElementById('err-dup');
+  function rowTpl(i, name){
+    return `
+      <tr draggable="true" data-name="${name}">
+        <td class="idx">${i}</td>
+        <td class="name">${name}</td>
+        <td><button class="btn mini danger btn-del">删除</button></td>
+      </tr>`;
+  }
+  async function load(){
+    TBY.innerHTML = "";
+    const g = encodeURIComponent(selGroup.value);
+    const res = await fetch("/api/settings/material_options/list?group="+g);
+    const data = await res.json();
+    (data.items||[]).sort((a,b)=>a.sort-b.sort).forEach((it, i)=>{
+      TBY.insertAdjacentHTML('beforeend', rowTpl(i+1, it.name));
+    });
+    bindRowEvents();
+  }
+  function bindRowEvents(){
+    TBY.querySelectorAll("tr").forEach(tr=>{
+      tr.addEventListener('dragstart', e=>{ tr.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+      tr.addEventListener('dragend', ()=> tr.classList.remove('dragging'));
+    });
+  }
+  TBY.addEventListener('dragover', e=>{
+    e.preventDefault();
+    const dragging = TBY.querySelector('.dragging');
+    if(!dragging) return;
+    const after = getDragAfter(TBY, e.clientY);
+    if(after == null) TBY.appendChild(dragging);
+    else TBY.insertBefore(dragging, after);
+    refreshIndex();
+  });
+  function getDragAfter(container, y){
+    const els = [...container.querySelectorAll('tr:not(.dragging)')];
+    return els.reduce((closest, child)=>{
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height/2;
+      if(offset < 0 && offset > closest.offset) return {offset, element: child};
+      else return closest;
+    }, {offset: Number.NEGATIVE_INFINITY}).element;
+  }
+  function refreshIndex(){ TBY.querySelectorAll('.idx').forEach((td, i)=> td.textContent = i+1); }
+  TBY.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('.btn-del');
+    if(!btn) return;
+    const tr = btn.closest('tr');
+    const name = tr.dataset.name;
+    if(!confirm("确定删除 "+name+" ?")) return;
+    const r = await fetch("/api/settings/material_options", {method:"DELETE", headers:{"Content-Type":"application/json"}, body: JSON.stringify({group: selGroup.value, name})});
+    const d = await r.json();
+    if(d.ok){ tr.remove(); refreshIndex(); } else alert(d.error||"删除失败");
+  });
+  btnSave.addEventListener('click', async ()=>{
+    const names = [...TBY.querySelectorAll('tr')].map(tr=> tr.dataset.name);
+    const r = await fetch("/api/settings/material_options/reorder", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({group: selGroup.value, names})});
+    const d = await r.json();
+    if(d.ok){ alert("已保存"); } else alert(d.error||"保存失败");
+  });
+  function open(){ dlg.style.display='flex'; inp.value=""; inp.focus(); errDup.style.display='none'; }
+  function close(){ dlg.style.display='none'; }
+  btnAdd.addEventListener('click', open);
+  btnCancel.addEventListener('click', close);
+  btnOK.addEventListener('click', async ()=>{
+    const name = (inp.value||"").trim();
+    if(!name) return;
+    const r = await fetch("/api/settings/material_options", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({group: selGroup.value, name})});
+    const d = await r.json();
+    if(d.ok){ close(); await load(); }
+    else if(d.error==='duplicate'){ errDup.style.display='block'; }
+    else alert(d.error||"添加失败");
+  });
+  selGroup.addEventListener('change', load);
+  load();
+})();
+</script>
+{% endblock %}

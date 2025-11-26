@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">入库设置</h2>
+
+<div class="card">
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('settings_item_categories') }}">物品种类设置</a>
+    <a class="btn" href="{{ url_for('settings_boxes_page') }}">箱号设置</a>
+    <a class="btn" href="{{ url_for('settings_accessory_types_page') }}">附属品设置</a>
+    <a class="btn" href="{{ url_for('settings_item_statuses_page') }}">物品状态设置</a>
+    <a class="btn" href="{{ url_for('settings_material_options_page') }}">材质选项</a>
+  </div>
+  <p style="margin-top:12px;color:#6b7280;">
+    请选择上面的任意设置项进入。可新增、删除，并显示当前所有记录。
+  </p>
+</div>
+{% endblock %}

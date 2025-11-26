@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-inbound">
+<h2 class="page-title">在库管理 / 入库</h2>
+
+<div class="center-wrap">
+  <div class="card">
+    <h3 class="card-title">1. 批次信息</h3>
+
+    <div class="form-vertical">
+      <div class="row">
+        <label class="field">
+          <span class="label">入库日期</span>
+          <input id="f_date" type="date" class="input" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label class="field">
+          <span class="label">件数</span>
+          <input id="f_count" type="number" class="input" min="1" step="1" placeholder="请输入本批次件数（正整数）" />
+        </label>
+      </div>
+
+      <!-- 出品人：单选下拉 + 搜索（不显示数量） -->
+      <div class="row">
+        <label class="field">
+          <span class="label">出品人（单选）</span>
+
+          <div id="seller-single" class="seller-multi">
+            <!-- 显示区 -->
+            <div id="seller-display" class="multi-display" tabindex="0" title="点击选择出品人">
+              <span class="placeholder">出品人（姓名/代号）</span>
+            </div>
+
+            <!-- 面板 -->
+            <div id="seller-panel" class="multi-panel" style="display:none;">
+              <!-- 头部：输入框 + 右侧按钮 -->
+              <div class="panel-head">
+                <input id="seller-input" class="input" placeholder="输入字母或汉字筛选" />
+                <div class="head-actions">
+                  <button id="seller-clear" class="btn sm" type="button">清空</button>
+                  <button id="seller-close" class="btn sm" type="button">关闭</button>
+                </div>
+              </div>
+
+              <!-- 列表（滚动区）：单选 -->
+              <div id="seller-options" class="opt-list"></div>
+            </div>
+          </div>
+
+          <!-- 隐藏域：供创建批次读取 -->
+          <input id="f_seller_code" type="hidden" />
+          <input id="f_seller_name" type="hidden" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label class="field">
+          <span class="label">签收人</span>
+          <input id="f_receiver" type="text" class="input" placeholder="请输入签收人" />
+        </label>
+      </div>
+
+      <div class="row">
+        <button id="btnCreate" class="btn primary" disabled>创建批次</button>
+        <div id="exist-tip" style="display:none; color:#ef4444; margin-top:6px; line-height:1.6;">
+          当前批次已有物品，请进入
+          <a id="exist-link" href="#" target="_blank" style="color:#ef4444; text-decoration:underline;">批次查询/修改</a>
+          进行操作
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+/* 布局与卡片：与其它页面保持一致（宽度交给 style.css 的变量） */
+.center-wrap{ margin: 24px auto; }
+.card{ padding:16px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
+.card-title{ margin:0 0 12px; font-size:16px; font-weight:600; color:#111827; }
+
+/* 表单排版 */
+.form-vertical{ display:block; }
+.row{ margin-bottom:12px; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field .label{ font-size:12px; color:#6b7280; line-height:1; }
+
+/* 输入控件统一（去掉宽高，交给 style.css 变量） */
+.input, select{
+  padding:0 10px;
+  border:1px solid #d1d5db; border-radius:8px; box-sizing:border-box;
+  font-family:inherit; font-size:14px; color:#111827; background:#fff;
+}
+.input:focus, select:focus{
+  outline:none; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15);
+}
+
+/* 按钮样式（去掉高度，交给 style.css 变量） */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:0 14px; border-radius:10px;
+  border:1px solid #d1d5db; background:#fff; color:#111827;
+  cursor:pointer; text-decoration:none; user-select:none;
+}
+.btn:hover{ filter:brightness(0.98); }
+.btn:active{ transform: translateY(0.5px); }
+.btn:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+.btn.primary{ border-color:#2563eb; background:#2563eb; color:#fff !important; }
+
+/* —— 单选下拉面板的布局增强（具体高宽由 style.css 变量控制） —— */
+.seller-multi .multi-panel{
+  display:flex; flex-direction:column; overflow:visible;
+}
+.seller-multi .panel-head{
+  display:flex; align-items:center; gap:8px; padding:8px;
+}
+.seller-multi .panel-head .input{ flex:1 1 auto; }
+.seller-multi .panel-head .head-actions{ display:flex; gap:8px; }
+
+.seller-multi .opt-list{
+  flex:1 1 auto;
+  overflow:auto;
+  padding:6px 0;
+}
+
+/* 移动端固定高度等交给 style.css 的变量处理 */
+@media (max-width: 640px){
+  .seller-multi .multi-panel{ }
+  .seller-multi .opt-list{ }
+}
+
+/* 出品人组件与原生栏的布局（不含宽高） */
+.seller-native .inline { display:flex; gap:8px; }
+.seller-native .inline .input { flex:1 1 auto; }
+.seller-native .inline .btn   { flex:0 0 auto; }
+</style>
+
+<script>
+/* ========== 数据与工具 ========== */
+let sellersMini = [];
+
+/* 归一化：去空格/全角→半角/转大写，便于拼音缩写匹配 */
+function normalizeInput(s) {
+  return String(s || "")
+    .trim()
+    .replace(/\u3000/g, " ")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 65248))
+    .toUpperCase();
+}
+
+/* 加载出品人（含 keys：原名/简体/繁体/拼音缩写） */
+async function loadSellers(){
+  if (sellersMini.length) return;
+  const miniRes = await fetch('/api/sellers/mini');
+  sellersMini = await miniRes.json();
+}
+
+/* ========== 单选下拉（radio 版本） ========== */
+function renderSellerOptionsSingle(filter=''){
+  const list = document.getElementById('seller-options');
+  if (!list) return;
+
+  const raw = String(filter||'').trim();
+  const V = normalizeInput(raw);
+  const onlyLetters = /^[A-Z]+$/.test(V);
+
+  const hit = (sellersMini || []).filter(s=>{
+    if (!V) return true;
+    const code = String(s.seller_code||'').toUpperCase();
+    const name = String(s.seller_name||'');
+    const keys = (s.keys||[]).map(k => String(k||''));
+
+    if (onlyLetters){
+      // 拼音缩写：大写包含匹配
+      return keys.some(k => {
+        const KK = normalizeInput(k);
+        return KK === V || KK.includes(V);
+      }) || code.includes(V);
+    }else{
+      // 汉字或混合：原样包含（keys 含简/繁/原名）
+      return keys.some(k => String(k).includes(raw)) || name.includes(raw);
+    }
+  });
+
+  list.innerHTML = hit.map(s => `
+    <label class="opt">
+      <input type="radio" name="sellerRadio" value="${s.seller_code}">
+      <span>${s.seller_code}｜${s.seller_name}</span>
+    </label>
+  `).join('') || `<div class="muted" style="padding:6px 10px;">无匹配结果</div>`;
+
+  // 恢复已选
+  const cur = (document.getElementById('f_seller_code').value || '').toUpperCase();
+  if (cur) {
+    const r = list.querySelector('input[type="radio"][value="'+CSS.escape(cur)+'"]');
+    if (r) r.checked = true;
+  }
+
+// 仅桌面端重置滚动条，手机端保持当前位置，避免“晃动”
+if (!window.matchMedia || !window.matchMedia('(max-width: 640px)').matches) {
+  list.scrollTop = 0;
+}
+
+}
+
+(function bindSellerSingle(){
+  const box   = document.getElementById('seller-single');
+  const disp  = document.getElementById('seller-display');
+  const panel = document.getElementById('seller-panel');
+  const input = document.getElementById('seller-input');
+  const clear = document.getElementById('seller-clear');
+  const closeBtn = document.getElementById('seller-close');
+  const list = document.getElementById('seller-options');
+
+  function open(){ panel.style.display='block'; input.focus(); }
+  function close(){ panel.style.display='none'; input.value=''; }
+
+  // 展开：点击显示区 -> 加载并展示全部
+  disp.addEventListener('click', async ()=>{
+    await loadSellers();
+    renderSellerOptionsSingle('');
+    open();
+  });
+
+  // 面板外点击收起
+  document.addEventListener('click', (ev)=>{
+    if (!panel.contains(ev.target) && !box.contains(ev.target)) close();
+  }, true);
+
+  // 输入筛选
+  input.addEventListener('input', ()=>{
+    renderSellerOptionsSingle(input.value || '');
+  });
+
+  // 选择一个出品人 -> 写入隐藏域并收起
+  list.addEventListener('change', (ev)=>{
+    const r = ev.target.closest('input[type="radio"]');
+    if (!r) return;
+    const code = String(r.value || '').toUpperCase();
+    const one = (sellersMini || []).find(x => String(x.seller_code||'').toUpperCase() === code);
+
+    document.getElementById('f_seller_code').value = code;
+    document.getElementById('f_seller_name').value = one ? (one.seller_name || '') : '';
+
+    // 更新显示
+    disp.innerHTML = `<span>${code}｜${one ? one.seller_name : ''}</span>`;
+
+    checkBatchAndToggle(); // 有日期 + code 才能创建
+    close();
+  });
+
+function doClear(e){
+  if (e){ e.preventDefault(); e.stopPropagation(); }
+  // 1) 清空已选
+  document.getElementById('f_seller_code').value = '';
+  document.getElementById('f_seller_name').value = '';
+  // 2) 清空搜索关键字（关键：手机端之前没清这个）
+  input.value = '';
+  // 3) 还原占位与列表
+  disp.innerHTML = '<span class="placeholder">出品人（姓名/代号）</span>';
+  renderSellerOptionsSingle('');
+  // 4) 维持输入焦点，键盘不收起
+  input.focus();
+  checkBatchAndToggle();
+}
+// 多通道监听，覆盖部分 iOS 机型
+clear.addEventListener('click', doClear, {passive:false});
+clear.addEventListener('touchstart', doClear, {passive:false});
+clear.addEventListener('touchend', doClear, {passive:false});
+clear.addEventListener('pointerup', doClear);
+
+
+  function doClose(e){
+    if (e){ e.preventDefault(); e.stopPropagation(); }
+    close();
+  }
+  closeBtn.addEventListener('click', doClose, {passive:false});
+  closeBtn.addEventListener('touchend', doClose, {passive:false});
+  closeBtn.addEventListener('pointerup', doClose);
+})();
+
+/* ========== 其余逻辑：保持与原来一致 ========== */
+async function checkBatchAndToggle(){
+  const date = (document.getElementById('f_date').value || '').trim();
+  const code = (document.getElementById('f_seller_code').value || '').trim().toUpperCase();
+  const btn  = document.getElementById('btnCreate');
+  const tip  = document.getElementById('exist-tip');
+  const link = document.getElementById('exist-link');
+
+  if (!date || !code){
+    btn.disabled = true;
+    tip.style.display = 'none';
+    return;
+  }
+  try{
+    const url = `/api/items/by-batch?stockin_date=${encodeURIComponent(date)}&seller_code=${encodeURIComponent(code)}`;
+    const r = await fetch(url);
+    if (!r.ok){ btn.disabled = false; tip.style.display='none'; return; }
+    const d = await r.json();
+    const has = Array.isArray(d.items) && d.items.length > 0;
+    if (has){
+      btn.disabled = true;
+      tip.style.display = 'block';
+      link.href = `/inventory/batch/${encodeURIComponent(date)}/${encodeURIComponent(code)}`;
+    }else{
+      btn.disabled = false;
+      tip.style.display = 'none';
+    }
+  }catch(e){
+    btn.disabled = false;
+    tip.style.display = 'none';
+  }
+}
+
+async function createBatch(){
+  const payload = {
+    stockin_date: document.getElementById('f_date').value,
+    count: Number(document.getElementById('f_count').value||0),
+    seller_code: (document.getElementById('f_seller_code').value || '').toUpperCase(),
+    stockin_receiver: (document.getElementById('f_receiver').value || '').trim()
+  };
+
+  if(!payload.stockin_date || payload.count<=0 || !payload.seller_code){
+    alert('入库日期、件数、出品人 必填且有效'); return;
+  }
+  if(!payload.stockin_receiver){
+    alert('签收人必填'); return;
+  }
+
+  // 保险：再次检查是否已有物品
+  try{
+    const chk = await fetch(`/api/items/by-batch?stockin_date=${encodeURIComponent(payload.stockin_date)}&seller_code=${encodeURIComponent(payload.seller_code)}`);
+    if (chk.ok){
+      const dd = await chk.json();
+      if (Array.isArray(dd.items) && dd.items.length > 0){
+        alert('当前批次已有物品，请进入“批次查询/修改”进行操作。');
+        window.open(`/inventory/batch/${encodeURIComponent(payload.stockin_date)}/${encodeURIComponent(payload.seller_code)}`, '_blank');
+        return;
+      }
+    }
+  }catch(e){}
+
+  const r = await fetch('/api/stock-batches/generate-items', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  });
+  const d = await r.json();
+  if(!r.ok){ alert(d.error||r.status); return; }
+
+  // 成功 → 跳转批次编辑
+  location.href = `/inventory/batch/${payload.stockin_date}/${payload.seller_code}`;
+}
+
+/* 事件绑定与初始化 */
+document.getElementById('btnCreate').addEventListener('click', (e)=>{ e.preventDefault(); createBatch(); });
+document.getElementById('f_date').addEventListener('change', checkBatchAndToggle);
+
+// 默认日期 = 今天
+(function initToday(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const s = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const el = document.getElementById('f_date');
+  if(!el.value) el.value = s;
+})();
+
+// 预加载出品人
+loadSellers().then(()=>checkBatchAndToggle());
+</script>
+</div>
+{% endblock %}

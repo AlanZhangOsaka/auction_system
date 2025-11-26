@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title or "拍卖会系统" }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">拍卖会系统</div>
+    <nav class="nav">
+      <a href="{{ url_for('index') }}">主界面</a>
+
+      <div class="dropdown">
+        <span>在库管理</span>
+        <div class="menu">
+          <a href="{{ url_for('inventory_inbound') }}">入库</a>
+          <a href="{{ url_for('inventory_list') }}">在库查询/修改</a>
+          <a href="{{ url_for('inventory_batches') }}">批次查询/修改</a>
+          <a href="{{ url_for('inventory_outbound') }}">出库</a>
+        </div>
+
+      </div>
+      <div class="dropdown">
+        <span>拍卖会管理</span>
+        <div class="menu">
+          <a href="{{ url_for('auctions_build') }}">拍卖会制作</a>
+          <a href="{{ url_for('auctions_images') }}">日常图片管理</a>
+          <a href="{{ url_for('auctions_billing') }}">账单制作</a>
+          <a href="{{ url_for('auctions_returns') }}">返品单制作</a>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <span>基础设置</span>
+        <div class="menu">
+          <a href="{{ url_for('settings_stockin') }}">入库设置</a>
+          <a href="#">拍卖会基础设置</a>
+        </div>
+      </div>
+
+      <a href="{{ url_for('sellers_index') }}">出品人信息</a>
+      <a href="{{ url_for('buyers_index') }}">买方信息</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">© 张昊阳制拍卖会系统 出错联系08070261001 微信331044139 邮箱zhy331044139@gmail.com</footer>
+  <script src="{{ url_for('static', filename='js/hover_preview.js') }}"></script>
+</body>
+</html>

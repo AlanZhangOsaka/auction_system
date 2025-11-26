@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>买方信息管理</h2>
+
+<section class="cards">
+  <div class="card">
+    <h3>新增/编辑买家</h3>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+      <label>买家名(buyer_name)<input id="b_name"></label>
+      <label>联系方式<input id="b_contact"></label>
+      <label>是否主买家<input id="b_main" type="checkbox"></label>
+      <label>地址<textarea id="b_addr" rows="2"></textarea></label>
+      <label>备注<textarea id="b_notes" rows="2"></textarea></label>
+    </div>
+    <div style="margin-top:10px;">
+      <button onclick="createBuyer()">新增</button>
+      <button onclick="updateBuyer()">保存编辑</button>
+      <button onclick="resetBuyer()">清空</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>买家列表</h3>
+    <table id="btbl" border="1" cellspacing="0" cellpadding="6" style="width:100%;">
+      <thead>
+        <tr>
+          <th>buyer_name</th><th>contact</th><th>main</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+async function loadBuyers(){
+  const res = await fetch('/api/buyers');
+  const data = await res.json();
+  const tbody = document.querySelector('#btbl tbody');
+  tbody.innerHTML = '';
+  data.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.buyer_name||''}</td>
+      <td>${r.buyer_contact||''}</td>
+      <td>${r.is_main_buyer?'是':'否'}</td>
+      <td>
+        <button onclick='fillBuyer(${JSON.stringify(r)})'>编辑</button>
+        <button onclick='delBuyer("${r.buyer_name}")'>删除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function fillBuyer(r){
+  b_name.value = r.buyer_name||'';
+  b_contact.value = r.buyer_contact||'';
+  b_main.checked = !!r.is_main_buyer;
+  b_addr.value = r.buyer_address||'';
+  b_notes.value = r.buyer_notes||'';
+}
+
+function resetBuyer(){ document.querySelectorAll('#b_name,#b_contact,#b_addr,#b_notes').forEach(i=>i.value=''); b_main.checked=false; }
+
+async function createBuyer(){
+  const payload = {
+    buyer_name: b_name.value.trim(),
+    buyer_contact: b_contact.value || null,
+    buyer_address: b_addr.value || null,
+    is_main_buyer: b_main.checked,
+    buyer_notes: b_notes.value || null
+  };
+  if(!payload.buyer_name){ alert('buyer_name 必填'); return; }
+  const res = await fetch('/api/buyers', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const d = await res.json();
+  if(!res.ok){ alert('新增失败：'+(d.error||res.status)); return; }
+  await loadBuyers(); alert('新增成功');
+}
+
+async function updateBuyer(){
+  const name = b_name.value.trim();
+  if(!name){ alert('先选择记录或填写 buyer_name'); return; }
+  const payload = {
+    buyer_contact: b_contact.value || null,
+    buyer_address: b_addr.value || null,
+    is_main_buyer: b_main.checked,
+    buyer_notes: b_notes.value || null
+  };
+  const res = await fetch('/api/buyers/'+encodeURIComponent(name), {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const d = await res.json();
+  if(!res.ok){ alert('保存失败：'+(d.error||res.status)); return; }
+  await loadBuyers(); alert('保存成功');
+}
+
+async function delBuyer(name){
+  if(!confirm('确认删除 '+name+' ?')) return;
+  const res = await fetch('/api/buyers/'+encodeURIComponent(name), {method:'DELETE'});
+  const d = await res.json();
+  if(!res.ok){ alert('删除失败：'+(d.error||res.status)); return; }
+  await loadBuyers(); alert('已删除');
+}
+
+loadBuyers();
+</script>
+{% endblock %}

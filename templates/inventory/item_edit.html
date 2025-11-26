@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">单件编辑：{{ item_code }}</h2>
+
+<div class="center-wrap">
+  <div class="card">
+
+    <style>
+      .form-sec{ display:flex; flex-direction:column; gap:16px; }
+
+      /* 顶部区域：左图右侧字段（桌面端），移动端自动纵排 */
+      .top-grid{ display:flex; flex-direction:column; gap:16px; }
+      @media (min-width: 900px){
+        .top-grid{ display:grid; grid-template-columns: 1.2fr 1fr; align-items:start; gap:20px; }
+      }
+
+      .field{ display:flex; flex-direction:column; gap:6px; }
+      .field label{ font-size:13px; color:#374151; }
+
+      /* 图片区域：与批次页交互一致（点击/拖拽即选图，立刻上传保存并预览） */
+      .thumb-lg{ width:100%; max-width:520px; aspect-ratio:4/3; }
+      .drop{
+        width:100%; height:100%;
+        border:1px dashed #cbd5e1; border-radius:12px; background:#fafafa;
+        display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; cursor:pointer;
+      }
+      .drop.dragover{ border-color:#2563eb; background:#eff6ff; }
+      .drop img.thumb{ width:100%; height:100%; object-fit:contain; background:#fff; }
+      .drop .hint{
+        position:absolute; bottom:8px; right:10px; font-size:12px; color:#6b7280;
+        background:rgba(255,255,255,.85); padding:2px 6px; border-radius:6px; border:1px solid #e5e7eb;
+      }
+      .drop input[type=file]{ display:none; }
+
+      /* 表单控件 */
+      .input, select{
+        height:36px; padding:6px 10px; border:1px solid #e5e7eb; border-radius:8px; background:#fff;
+      }
+      .input:focus, select:focus{ outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.15); border-color:#2563eb; }
+      .readonly{ background:#f9fafb !important; color:#374151; }
+
+      /* 下方栅格：名称与尺寸并排（>=600px） */
+      .bottom-grid{ display:flex; flex-direction:column; gap:16px; }
+      @media (min-width: 600px){
+        .bottom-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:16px 20px; }
+      }
+
+      /* 附属品多选 */
+      .acc-wrap{ display:flex; flex-wrap:wrap; gap:8px 12px; }
+      .acc-wrap label{ display:flex; align-items:center; gap:6px; font-size:14px; }
+
+      /* 底部操作条 */
+      .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+      .btn, .btn:link, .btn:visited{
+        height:36px; line-height:34px; padding:0 14px; border:1px solid #d1d5db; border-radius:10px; background:#fff;
+        color:#111827; font-size:14px; font-weight:500; cursor:pointer; text-decoration:none;
+        display:inline-flex; align-items:center; justify-content:center;
+        transition: transform .02s ease, filter .15s ease, box-shadow .15s ease;
+      }
+      .btn:hover{ filter:brightness(0.98); }
+      .btn:active{ transform:translateY(0.5px); }
+      .btn:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+      .btn.primary{ border-color:#2563eb; background:#2563eb; color:#fff !important; }
+
+      .btn-row.sticky{ position:sticky; bottom:0; background:#fff; padding-top:8px; margin-top:12px; }
+    
+      .mat-line{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .chips{ display:flex; gap:6px; flex-wrap:wrap; min-height:28px; }
+      .chip{ display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border:1px solid #e5e7eb; border-radius:999px; background:#f9fafb; font-size:12px; }
+      .chip i{ font-style:normal; cursor:pointer; opacity:.7; }
+      .chip i:hover{ opacity:1; }
+      .mat-adder{ position:fixed; z-index:3000; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); padding:10px; }
+      .mat-adder .mat-row{ display:flex; gap:8px; margin-bottom:8px; }
+      .muted{ color:#6b7280; font-size:12px; }
+</style>
+
+    <div class="form-sec">
+
+      <!-- 内部编号 -->
+      <div class="field">
+        <label>内部编号</label>
+        <input id="f_code" class="input readonly" value="{{ item_code }}" readonly>
+      </div>
+
+      <!-- 顶部：左图右侧（分类/位置/箱号） -->
+      <div class="top-grid">
+
+        <!-- 图片（点击/拖拽上传，立即保存并预览） -->
+        <div class="field">
+          <label>图片</label>
+          <div class="thumb-lg">
+            <div class="drop" id="imgDrop" data-drop>
+              <span class="hint">点击/拖拽上传</span>
+              <input type="file" id="file" accept="image/*">
+              <button type="button" class="btn sm" id="btnClearImage">清除图片</button>
+              <!-- 预览占位 -->
+              <img id="imgPreview" class="thumb" alt="img" style="display:none;">
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：分类 / 位置 / 箱号 -->
+        <div class="right-fields">
+          <div class="field">
+            <label>分类</label>
+            <select id="f_cat"></select>
+          </div>
+          <div class="field">
+            <label>位置</label>
+            <input id="f_loc" class="input" placeholder="位置">
+          </div>
+          <div class="field">
+            <label>箱号</label>
+            <input id="f_box" class="input" list="boxes_datalist" placeholder="箱号">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 下方：名称 / 尺寸 -->
+      <div class="bottom-grid">
+        <div class="field">
+          <label>名称</label>
+          <input id="f_name" class="input" placeholder="名称">
+        </div>
+        <div class="field">
+          <label>尺寸</label>
+          <input id="f_size" class="input" placeholder="尺寸">
+        </div>
+      </div>
+
+      <!-- 附属品 -->
+      <div class="field">
+        <label>附属品</label>
+        <div id="accList" class="acc-wrap"></div>
+      </div>
+
+      
+      <!-- 材质（可多组添加） -->
+      <div class="field">
+        <label>材质</label>
+        <div class="mat-line">
+          <div id="mat_tokens" class="chips"></div>
+          <button type="button" id="mat_add" class="btn sm" title="添加一组">＋</button>
+        </div>
+        <small class="muted">可添加多组，如 “设色纸本立轴”；点击标签可删除。</small>
+      </div>
+<!-- 起拍价 / 底价 -->
+      <div class="bottom-grid">
+        <div class="field">
+          <label>起拍价 <span style="font-size:12px;color:#6b7280;">（万日元）</span></label>
+          <input id="f_starting" class="input" inputmode="numeric" pattern="[0-9]*" placeholder="整数">
+        </div>
+        <div class="field">
+          <label>底价 <span style="font-size:12px;color:#6b7280;">（万日元）</span></label>
+          <input id="f_reserve" class="input" inputmode="numeric" pattern="[0-9]*" placeholder="整数">
+        </div>
+      </div>
+
+
+      <datalist id="boxes_datalist"></datalist>
+
+      <!-- 操作区（去掉“返回不保存”） -->
+      <div class="btn-row sticky">
+        <button class="btn" id="btnPrev">保存并上一件</button>
+        <button class="btn primary" id="btnNext">保存并下一件</button>
+        <button class="btn" id="btnBack">保存并返回</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+/* 上下文参数 */
+const ITEM_CODE = "{{ item_code }}";
+const INIT_DATE = "{{ stockin_date or '' }}";
+const INIT_SELLER = "{{ seller_code or '' }}";
+
+let BATCH_DATE = INIT_DATE;
+let BATCH_SELLER = INIT_SELLER;
+
+let ACC_OPTS = [], CAT_OPTS = [], BOX_OPTS = [], BOX_SET = new Set();
+let BATCH_LIST = [];   // 批次内代码列表
+let INDEX = -1;        // 当前下标
+let ITEM = {};         // 当前 item 数据
+
+/* DOM */
+const elLoc  = document.getElementById('f_loc');
+const elBox  = document.getElementById('f_box');
+const elCat  = document.getElementById('f_cat');
+const elName = document.getElementById('f_name');
+const elSize = document.getElementById('f_size');
+const elAcc  = document.getElementById('accList');
+const elFile = document.getElementById('file');
+const elDrop = document.getElementById('imgDrop');
+const elImg  = document.getElementById('imgPreview');
+const elStart = document.getElementById('f_starting');
+const elReserve = document.getElementById('f_reserve');
+
+// 数字过滤（只留数字）
+[elStart, elReserve].forEach(inp=>{
+  if(!inp) return;
+  inp.addEventListener('input', ()=>{ inp.value = (inp.value||'').replace(/[^\d]/g,''); });
+});
+
+
+/* 兜底：与批次页一致的重命名（保留后缀，文件名=ITEM_CODE） */
+function renameFileKeepExt(file, base){
+  try{
+    let ext=''; const m=(file.name||'').match(/(\.[a-z0-9]+)$/i); if(m) ext=m[1];
+    if(!ext && file.type){
+      const map={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','image/gif':'.gif'};
+      ext = map[file.type] || '';
+    }
+    return new File([file], String(base)+ext, {type:file.type});
+  }catch(e){ return file; }
+}
+
+/* 字典 */
+async function loadDictionaries(){
+  try{ const r = await fetch('/api/settings/item_categories'); if (r.ok){ CAT_OPTS = (await r.json()).items||[]; } }catch{}
+  try{ const r = await fetch('/api/settings/accessory_types'); if (r.ok){ ACC_OPTS = (await r.json()).items||[]; } }catch{}
+  try{
+    const r = await fetch('/api/settings/boxes');
+    if (r.ok){
+      const d = await r.json();
+      BOX_OPTS = d.items||[]; BOX_SET = new Set(BOX_OPTS);
+      const dl = document.getElementById('boxes_datalist');
+      dl.innerHTML = BOX_OPTS.map(v=>`<option value="${v}"></option>`).join('');
+    }
+  }catch{}
+}
+
+/* 附属品渲染 */
+function renderAccessories(selected){
+  const set = new Set(selected||[]);
+  elAcc.innerHTML = (ACC_OPTS||[]).map(v=>{
+    const checked = set.has(v) ? 'checked' : '';
+    return `<label><input type="checkbox" value="${v}" ${checked}>${v}</label>`;
+  }).join('');
+}
+function getSelectedAccessories(){
+  return Array.from(elAcc.querySelectorAll('input[type="checkbox"]:checked')).map(x=>x.value);
+}
+
+/* 读取当前 item */
+async function loadItem(){
+  const r = await fetch(`/api/items/${encodeURIComponent(ITEM_CODE)}`);
+  const d = await r.json();
+  if(!r.ok){ alert(d.error||r.status); return; }
+  ITEM = d||{};
+  if(!BATCH_DATE) BATCH_DATE = ITEM.stockin_date || '';
+  if(!BATCH_SELLER) BATCH_SELLER = ITEM.seller_code || '';
+
+  // 填充
+  elLoc.value  = ITEM.item_location || '';
+  elBox.value  = ITEM.item_box_code || '';
+  elName.value = ITEM.item_name || '';
+  elSize.value = ITEM.item_size || '';
+  elStart.value   = (ITEM.starting_price != null && ITEM.starting_price !== '') ? Math.trunc(ITEM.starting_price) : '';
+  elReserve.value = (ITEM.reserve_price  != null && ITEM.reserve_price  !== '') ? Math.trunc(ITEM.reserve_price)  : '';
+
+
+  // 分类选项
+  elCat.innerHTML = ['<option value=""></option>'].concat((CAT_OPTS||[]).map(v=>`<option value="${v}">${v}</option>`)).join('');
+  elCat.value = ITEM.item_category || '';
+
+  // 附属品
+  renderAccessories(ITEM.accessories||[]);
+
+  // 材质（chips）
+  try{ renderMaterialChipsFromText(ITEM.item_material||''); }catch{}
+
+  // 图片预览
+  if (ITEM.item_image){
+    elImg.src = ITEM.item_image;
+    elImg.style.display = '';
+  }else{
+    elImg.removeAttribute('src');
+    elImg.style.display = 'none';
+  }
+}
+
+/* 上传并保存图片（点击/拖拽触发） */
+async function uploadAndSaveImage(file){
+  if(!file) return;
+  const renamed = renameFileKeepExt(file, ITEM_CODE);
+  const fd = new FormData();
+  fd.append('file', renamed);
+  fd.append('item_code', ITEM_CODE);
+  const r = await fetch('/api/upload-image', { method:'POST', body: fd });
+  const d = await r.json();
+  if(!r.ok){ alert(d.error||r.status); return; }
+  const path = d.path;
+
+  // 立即预览
+  elImg.src = path; elImg.style.display='';
+
+  // 落库 item_image
+  await fetch(`/api/items/${encodeURIComponent(ITEM_CODE)}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ item_image: path })
+  });
+}
+
+async function clearAndSaveImage(){
+  // 清除预览
+  elImg.removeAttribute('src'); elImg.style.display='none';
+  // 保存为空
+  await fetch(`/api/items/${encodeURIComponent(ITEM_CODE)}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ item_image: null })
+  });
+}
+document.getElementById('btnClearImage').addEventListener('click', clearAndSaveImage);
+
+/* 绑定图片交互：点击/拖拽选择，移动端可拍照 */
+function bindImagePicker(){
+  // 点击打开
+  elDrop.addEventListener('click', (e)=>{
+    if (e.target.tagName.toLowerCase() !== 'input') elFile.click();
+  });
+  // 选择后立即上传
+  elFile.addEventListener('change', async ()=>{
+    const f = elFile.files && elFile.files[0];
+    await uploadAndSaveImage(f);
+  });
+  // 拖拽上传（桌面）
+  elDrop.addEventListener('dragover', e=>{ e.preventDefault(); elDrop.classList.add('dragover'); });
+  elDrop.addEventListener('dragleave', ()=> elDrop.classList.remove('dragover'));
+  elDrop.addEventListener('drop', async e=>{
+    e.preventDefault(); elDrop.classList.remove('dragover');
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    await uploadAndSaveImage(f);
+  });
+}
+
+
+/* 材质：chips + 弹出添加 */
+let MAT_LIST = [];
+function renderMaterialChipsFromText(text){
+  MAT_LIST = AU.Material.parse(text||'');
+  const el = document.getElementById('mat_tokens');
+  el.innerHTML = MAT_LIST.map(v=>`<span class="chip" data-v="${v}">${v}<i data-x="${v}">×</i></span>`).join('');
+}
+document.addEventListener('click', (e)=>{
+  const x = e.target.closest('#mat_tokens i');
+  if (x){
+    const v = x.getAttribute('data-x');
+    MAT_LIST = MAT_LIST.filter(s=>s!==v);
+    renderMaterialChipsFromText(AU.Material.serialize(MAT_LIST));
+  }
+});
+document.getElementById('mat_add').addEventListener('click', (e)=>{
+  AU.Material.openAdder(e.currentTarget, (t)=>{
+    if (!MAT_LIST.includes(t)){ MAT_LIST.push(t); renderMaterialChipsFromText(AU.Material.serialize(MAT_LIST)); }
+  });
+});
+/* 保存（主信息 + 附属品） */
+  async function saveOnce(){
+    // 箱号校验：若填了必须在下拉里
+    const vbox = (elBox.value||'').trim();
+    if (vbox && !BOX_SET.has(vbox)){ alert('箱号必须为下拉列表中的值'); elBox.focus(); return false; }
+
+    // —— 金额处理：空 => null；仅允许非负整数；若两者都有则起拍价 ≤ 底价 ——
+    const spRaw = (elStart?.value || '').trim();
+    const rpRaw = (elReserve?.value || '').trim();
+    const isInt = v => v === '' || /^\d+$/.test(v);
+
+    if (!isInt(spRaw) || !isInt(rpRaw)){
+      alert('金额需为非负整数（万日元）');
+      (!isInt(spRaw) ? elStart : elReserve).focus();
+      return false;
+    }
+
+    const sp = spRaw === '' ? null : spRaw;   // 传字符串数字，后端会做 to_int_or_none
+    const rp = rpRaw === '' ? null : rpRaw;
+    if (sp != null && rp != null && parseInt(sp,10) > parseInt(rp,10)){
+      alert('起拍价不能高于底价');
+      elStart.focus();
+      return false;
+    }
+
+    const payload = {
+      item_location: elLoc.value.trim() || null,
+      item_box_code: vbox || null,
+      item_category: elCat.value || null,
+      item_name: elName.value.trim() || null,
+      item_size: elSize.value.trim() || null,
+      starting_price: sp,
+      reserve_price: rp,
+      item_material: (AU.Material.serialize(MAT_LIST) || null)
+    };
+
+    const r1 = await fetch(`/api/items/${encodeURIComponent(ITEM_CODE)}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const d1 = await r1.json();
+    if(!r1.ok){ alert(d1.error||r1.status); return false; }
+
+    const accessories = getSelectedAccessories();
+    const r2 = await fetch(`/api/items/${encodeURIComponent(ITEM_CODE)}/accessories`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ accessories })
+    });
+    const d2 = await r2.json();
+    if(!r2.ok){ alert(d2.error||r2.status); return false; }
+
+    return true;
+  }
+
+/* 批次列表（上一件/下一件用） */
+async function loadBatchList(){
+  if(!BATCH_DATE || !BATCH_SELLER){ BATCH_LIST = []; INDEX=-1; return; }
+  const url = `/api/items/by-batch?stockin_date=${encodeURIComponent(BATCH_DATE)}&seller_code=${encodeURIComponent(BATCH_SELLER)}`;
+  const r = await fetch(url); const d = await r.json();
+  if(!r.ok){ return; }
+  const items = (d.items||[]).slice();
+  items.sort((a,b)=>{
+    const ax=a.item_code||'', bx=b.item_code||'';
+    const ap=ax.replace(/_\d+$/,''), bp=bx.replace(/_\d+$/,'');
+    if (ap!==bp) return ap.localeCompare(bp, 'zh-Hans-CN');
+    const an=+((ax.match(/_(\d+)$/)||[])[1]||0), bn=+((bx.match(/_(\d+)$/)||[])[1]||0);
+    return an-bn;
+  });
+  BATCH_LIST = items.map(x=>x.item_code);
+  INDEX = BATCH_LIST.indexOf(ITEM_CODE);
+  document.getElementById('btnPrev').disabled = (INDEX<=0);
+  document.getElementById('btnNext').disabled = (INDEX<0 || INDEX>=BATCH_LIST.length-1);
+}
+
+/* 导航 */
+function goTo(code){
+  const q = [];
+  if(BATCH_DATE) q.push('stockin_date='+encodeURIComponent(BATCH_DATE));
+  if(BATCH_SELLER) q.push('seller_code='+encodeURIComponent(BATCH_SELLER));
+  q.push('from=batch');
+  const qs = q.length?('?'+q.join('&')):'';
+  window.location.href = `/inventory/item/${encodeURIComponent(code)}${qs}`;
+}
+
+/* 绑定按钮 */
+document.getElementById('btnPrev').addEventListener('click', async ()=>{
+  if(!(await saveOnce())) return;
+  if(INDEX>0){ goTo(BATCH_LIST[INDEX-1]); } else { alert('已是第一件'); }
+});
+document.getElementById('btnNext').addEventListener('click', async ()=>{
+  if(!(await saveOnce())) return;
+  if(INDEX>=0 && INDEX<BATCH_LIST.length-1){ goTo(BATCH_LIST[INDEX+1]); } else { alert('已是最后一件'); }
+});
+document.getElementById('btnBack').addEventListener('click', async ()=>{
+  if(!(await saveOnce())) return;
+  if(BATCH_DATE && BATCH_SELLER){
+    window.location.href = `/inventory/batch/${encodeURIComponent(BATCH_DATE)}/${encodeURIComponent(BATCH_SELLER)}`;
+  }else{
+    history.length>1 ? history.back() : (window.location.href='/inventory/batches');
+  }
+});
+
+/* 启动 */
+(async function(){
+  await loadDictionaries();
+  await bindImagePicker();
+  await loadItem();
+  await loadBatchList();
+})();
+</script>
+{% endblock %}

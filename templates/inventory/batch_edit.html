@@ -1,0 +1,767 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">批次编辑：{{ stockin_date }} / {{ seller_code }}</h2>
+
+<div class="center-wrap">
+  <div class="card">
+    <!-- 顶部按钮 -->
+    <div class="btn-row" id="top-btn-row">
+      <label class="btn">
+        选择文件夹上传（按文件名精确匹配）
+        <input type="file" id="folder" webkitdirectory directory multiple style="display:none;">
+      </label>
+      <button class="btn" id="add-item-btn">新增一件（可选序号）</button>
+      <button class="btn" id="add-many-btn">新增多件（末尾续号）</button>
+      <button class="btn primary" id="save-all">保存全部（快捷键 Ctrl+S）</button>
+      <a class="btn" href="{{ url_for('inventory_batches') }}">返回批次列表</a>
+      <button class="btn hide-mobile" id="btn-export-xlsx">导出Excel</button>
+      <button class="btn" id="btn-export-pdf">导出PDF</button>
+
+      <!-- 悬停预览开关 -->
+      <label class="btn toggle">
+        <input type="checkbox" id="hover-enable" />
+        <span>开启悬停大图</span>
+      </label>
+      <button class="btn del" id="btn-clean-empty">删除无信息物品</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table excel batch-fixed" id="tbl">
+        <colgroup>
+          <col style="width:120px;"><!-- 内部编号 -->
+          <col style="width:120px;"><!-- 图片 -->
+          <col style="width:90px;"><!-- 位置 -->
+          <col style="width:70px;"><!-- 箱号 -->
+          <col style="width:120px;"><!-- 种类 -->
+          <col style="width:220px;"><!-- 名称 -->
+          <col style="width:190px;"><!-- 尺寸 -->
+          <col style="width:120px;"><!-- 起拍价 -->
+          <col style="width:120px;"><!-- 底价 -->
+          <col style="width:180px;"><!-- 附属品 -->
+          <col style="width:120px;"><!-- 操作 -->
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="th-center">内部编号</th>
+            <th>图片</th>
+            <th>位置</th>
+            <th>箱号</th>
+            <th>种类</th>
+            <th>名称</th>
+            <th>尺寸</th>
+            <th>起拍价<br><small>（万日元）</small></th>
+            <th>底价<br><small>（万日元）</small></th>
+            <th>附属品</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="datalist-holder"></div>
+  </div>
+</div>
+
+<div id="top-toast" class="top-toast" role="status" aria-live="polite"></div>
+<button id="save-fab" class="btn primary save-fab" title="保存全部（Ctrl+S）">保存全部</button>
+
+<!-- 预览浮窗 -->
+<div id="img-preview" class="img-preview" style="left:24px; top:120px;">
+  <div class="img-preview-inner">
+    <div class="preview-header" id="img-preview-drag" title="按住此处可拖动">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="preview-hint">滚轮缩放 · 按住拖动</div>
+      <button id="img-preview-close" class="preview-close" title="关闭">×</button>
+    </div>
+    <div id="preview-body" class="preview-body">
+      <img id="img-preview-img" src="" alt="preview">
+    </div>
+    <div class="preview-actions">
+      <a id="img-preview-open" href="#" target="_blank" rel="noopener">打开图片</a>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+<script>
+const DATE = "{{ stockin_date }}";
+const SELLER = "{{ seller_code }}";
+
+let CAT_OPTS = [], ACC_OPTS = [], BOX_OPTS = [], BOX_SET = new Set();
+
+function __local_showToast_removed(msg, type='success'){
+  const el = document.getElementById('top-toast');
+  el.textContent = msg;
+  el.style.background = type === 'success' ? '#10b981' : '#ef4444';
+  el.style.display = 'block';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=> el.style.display = 'none', 1600);
+}
+
+/* 悬停开关（记忆） */
+// hover key handled in hover_preview.js/common.js
+function __local_isHover_removed(){ const cb = document.getElementById('hover-enable'); return !!(cb && cb.checked); }
+(function initHoverToggle(){
+  const cb = document.getElementById('hover-enable');
+  let val = localStorage.getItem('hoverPreviewEnabled');
+  if (val === null) val = '1';
+  cb.checked = (val === '1');
+  cb.addEventListener('change', ()=>{
+    localStorage.setItem('hoverPreviewEnabled', cb.checked ? '1' : '0');
+    if (!cb.checked) document.getElementById('img-preview').style.display='none';
+  });
+})();
+
+/* 字典 */
+async function loadDictionaries_old(){
+  try{ const r = await fetch('/api/settings/item_categories'); if (r.ok){ CAT_OPTS = (await r.json()).items||[]; } }catch{}
+  try{ const r = await fetch('/api/settings/accessory_types'); if (r.ok){ ACC_OPTS = (await r.json()).items||[]; } }catch{}
+  try{
+    const r = await fetch('/api/settings/boxes');
+    if (r.ok){
+      const d = await r.json();
+      BOX_OPTS = d.items||[];
+      BOX_SET = new Set(BOX_OPTS);
+      const holder = document.getElementById('datalist-holder');
+      holder.querySelector('#boxes_datalist')?.remove();
+      const dl = document.createElement('datalist'); dl.id='boxes_datalist';
+      dl.innerHTML = BOX_OPTS.map(v=>`<option value="${v}"></option>`).join('');
+      holder.appendChild(dl);
+    }
+  }catch{}
+}
+
+/* 加载批次数据 */
+async function load(){
+  const url = `/api/items/by-batch?stockin_date=${encodeURIComponent(DATE)}&seller_code=${encodeURIComponent(String(SELLER||'').toUpperCase())}`;
+  const r = await fetch(url); const d = await r.json();
+  if(!r.ok){ alert(d.error||r.status); return; }
+  const items = (d.items||[]).slice();
+  items.sort((a,b)=>{
+    const ax=a.item_code||'', bx=b.item_code||'';
+    const ap=ax.replace(/_\d+$/,''), bp=bx.replace(/_\d+$/,'');
+    if (ap!==bp) return ap.localeCompare(bp, 'zh-Hans-CN');
+    const an=+((ax.match(/_(\d+)$/)||[])[1]||0), bn=+((bx.match(/_(\d+)$/)||[])[1]||0);
+    return an-bn;
+  });
+  renderRows(items);
+}
+
+/* 渲染表格 */
+function renderRows(rows){
+  const tbody = document.querySelector('#tbl tbody');
+  tbody.innerHTML = '';
+
+  rows.forEach(row=>{
+    const tr = document.createElement('tr');
+    tr.dataset.code = row.item_code;
+
+    const catOptions = ['<option value=""></option>'].concat(CAT_OPTS.map(v=>`<option value="${v}">${v}</option>`)).join('');
+    const catSelect = `<select class="cat-select" data-field="item_category" data-init="${(row.item_category||'')}">${catOptions}</select>`;
+
+    const accChecked = new Set(row.accessories||[]);
+    const accPanel = (ACC_OPTS||[]).map(v=>{
+      const checked = accChecked.has(v)?'checked':'';
+      return `<label class="opt"><input type="checkbox" value="${v}" ${checked}>${v}</label>`;
+    }).join('');
+    const accComp = `
+      <div class="multi" data-acc>
+        <div class="multi-display" tabindex="0" role="button" aria-label="选择附属品">
+          <span class="text">${(row.accessories||[]).join('、') || '<span class="placeholder">附属品</span>'}</span>
+          <span aria-hidden="true">▾</span>
+        </div>
+        <div class="multi-panel"><div class="opts">${accPanel||'<div class="opt" style="color:#9ca3af;">（无可选项）</div>'}</div>
+          <div class="panel-actions">
+            <button type="button" class="btn sm" data-acc-cancel>取消</button>
+            <button type="button" class="btn sm primary" data-acc-ok>确定</button>
+          </div>
+        </div>
+        <input type="hidden" data-field="__accessories" value="${(row.accessories||[]).join('、')}" data-init="${(row.accessories||[]).join('、')}">
+      </div>`;
+
+    const boxInput = `<input class="input box-input" list="boxes_datalist" data-field="item_box_code"
+                        value="${row.item_box_code||''}" data-init="${row.item_box_code||''}" placeholder="箱号">`;
+
+    const imgSrc = row.item_image || '';
+    const thumb = imgSrc ? `<img class="thumb" src="${imgSrc}" alt="img">` : '';
+    const imgCell = `
+      <div class="thumb-wrap ${imgSrc ? 'has-img':''}" data-thumb>
+        <div class="drop" data-drop>
+          ${thumb}
+          <span class="hint">拖拽/单击上传</span>
+          <input type="file" accept="image/*">
+        </div>
+        <!-- 响应式“清除图片”按钮：桌面端显示文字，手机端显示 × -->
+        <button type="button" class="btn sm" data-clear-img>
+          <span class="clear-text">清除图片</span>
+          <span class="clear-icon">×</span>
+        </button>
+        <!-- 隐藏域：用于保存/清空 item_image -->
+        <input type="hidden" class="input" data-field="item_image" value="${imgSrc}" data-init="${imgSrc}">
+      </div>`;
+
+
+    const locVal  = row.item_location || '';
+    const nameVal = row.item_name || '';
+    const sizeVal = row.item_size || '';
+    const spVal   = (row.starting_price ?? '');
+    const rpVal   = (row.reserve_price  ?? '');
+
+    tr.innerHTML = `
+      <td class="code-td">
+        ${(()=>{
+          const code = row.item_code || '';
+          const m = code.match(/^(.*)_(\d+)$/);
+          const prefix = m ? m[1] + '_' : code;
+          const seq = m ? m[2] : '';
+          const href = `/inventory/item/${encodeURIComponent(code)}?from=batch&stockin_date=${encodeURIComponent(DATE)}&seller_code=${encodeURIComponent(SELLER)}`;
+          return `
+            <a class="code-link" href="${href}">
+              <span class="code-prefix">${prefix}</span><span class="code-seq">${seq}</span>
+            </a>
+          `;
+        })()}
+      </td>
+
+      <td class="img-cell">${imgCell}</td>
+      <td><input class="input" value="${locVal}"  data-field="item_location" data-init="${locVal}"  placeholder="位置"></td>
+      <td>${boxInput}</td>
+      <td>${catSelect}</td>
+      <td><input class="input" value="${nameVal}" data-field="item_name" data-init="${nameVal}" placeholder="名称"></td>
+      <td><input class="input" value="${sizeVal}" data-field="item_size" data-init="${sizeVal}" placeholder="尺寸"></td>
+      <td><input class="input" type="number" step="1" min="0"
+                 value="${spVal===''?'':String(spVal).replace(/\.0+$/,'')}"
+                 data-field="starting_price" data-init="${spVal===''?'':String(spVal).replace(/\.0+$/,'')}" placeholder="起拍价"></td>
+      <td><input class="input" type="number" step="1" min="0"
+                 value="${rpVal===''?'':String(rpVal).replace(/\.0+$/,'')}"
+                 data-field="reserve_price"  data-init="${rpVal===''?'':String(rpVal).replace(/\.0+$/,'')}" placeholder="底价"></td>
+      <td class="acc-cell">${accComp}</td>
+      <td>
+        <div class="actions">
+          <button class="btn primary" data-save>保存</button>
+          <button class="btn del" data-del>删除</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+
+    tr.querySelector('select[data-field="item_category"]').value = row.item_category || '';
+
+    initAccComponent(tr);
+    initDropUpload(tr, row.item_code);
+
+    tr.querySelectorAll('.box-input').forEach(inp=>{
+      const validate = ()=>{
+        const v=(inp.value||'').trim();
+        if(BOX_SET.size>0 && v && !BOX_SET.has(v)){ inp.classList.add('invalid'); inp.title='必须为下拉列表中的值'; }
+        else{ inp.classList.remove('invalid'); inp.title=''; }
+      };
+      inp.addEventListener('blur', validate); inp.addEventListener('change', validate);
+    });
+  });
+
+  tbody.querySelectorAll('[data-save]').forEach(btn=> btn.addEventListener('click', ()=>saveRow(btn.closest('tr'))));
+  tbody.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>deleteRow(btn.closest('tr'))));
+
+  bindPreview();
+  setupFab();
+}
+
+/* 附属品组件 */
+function initAccComponent(tr){
+  const multi = tr.querySelector('[data-acc]'); if(!multi) return;
+  const display = multi.querySelector('.multi-display');
+  const panel = multi.querySelector('.multi-panel');
+  const hidden = multi.querySelector('input[data-field="__accessories"]');
+  let snapshot = getChecked(panel);
+
+  const open = ()=>{ snapshot = getChecked(panel); closeAllPanels(); requestAnimationFrame(()=> multi.classList.add('open')); };
+  display.addEventListener('click', open);
+  display.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
+  multi.querySelector('[data-acc-cancel]').addEventListener('click', ()=>{ setChecked(panel, snapshot); multi.classList.remove('open'); });
+  multi.querySelector('[data-acc-ok]').addEventListener('click', ()=>{
+    const list = getChecked(panel); hidden.value=list.join('、'); updateDisplay(multi, list); multi.classList.remove('open');
+  });
+}
+function getChecked(panel){ return Array.from(panel.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value); }
+function setChecked(panel, list){
+  const set = new Set(list);
+  panel.querySelectorAll('input[type="checkbox"]').forEach(i => {
+    i.checked = set.has(i.value);
+  });
+}
+
+function updateDisplay(m,t){ const el = m.querySelector('.multi-display .text'); el.innerHTML = t.length? t.join('、'):'<span class="placeholder">附属品</span>'; }
+function closeAllPanels(){ document.querySelectorAll('.multi.open').forEach(m=>m.classList.remove('open')); }
+document.addEventListener('click', e=>{ if(!e.target.closest('.multi')) closeAllPanels(); });
+
+/* 文件重命名（保持后缀） */
+function __local_rename_removed(file, base){
+  let ext=''; const m=(file.name||'').match(/(\.[a-z0-9]+)$/i); if(m) ext=m[1];
+  if(!ext && file.type){ const map={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','image/gif':'.gif'}; ext=map[file.type]||''; }
+  return new File([file], base+ext, {type:file.type});
+}
+
+/* 上传（重命名） + 悬停触发预览 */
+function initDropUpload(tr, code){
+  const wrap = tr.querySelector('[data-thumb]'); const box = tr.querySelector('[data-drop]'); const fileInput = box.querySelector('input[type=file]');
+  box.addEventListener('mouseenter', ()=>{
+    if (!AU.isHoverEnabled()) return;
+    const img = box.querySelector('img.thumb'); if(img && img.src) showPreview(img.src);
+  });
+  box.addEventListener('click', e=>{ if(e.target.tagName.toLowerCase()!=='input') fileInput.click(); });
+  fileInput.addEventListener('change', async ()=>{
+    const f = fileInput.files[0]; if(f) await uploadFile(code, f, box, wrap);
+  });
+  // 清除图片按钮
+  const btnClear = tr.querySelector('[data-clear-img]');
+  if(btnClear){
+    btnClear.addEventListener('click', async ()=>{
+      const img = box.querySelector('img.thumb'); if(img){ img.remove(); }
+      box.closest('[data-thumb]')?.classList.remove('has-img');
+      const hidden = tr.querySelector('input[data-field="item_image"]');
+      if(hidden){ hidden.value=''; }
+
+      // 手机端（<=768px）：清除后立即保存到后端
+      const isMobile = window.matchMedia("(max-width: 768px)").matches;
+      if(isMobile){
+        try{
+          const res = await fetch('/api/items/'+encodeURIComponent(code), {
+            method:'PUT',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ item_image: null })
+          });
+          if(!res.ok){
+            const d = await res.json().catch(()=>({}));
+            alert('清除失败：'+(d.error||res.status));
+          } else {
+            AU.showToast('图片已清除');
+          }
+        }catch(e){
+          alert('清除失败：'+(e.message||e));
+        }
+      }
+    });
+  }
+
+  box.addEventListener('dragover', e=>{ e.preventDefault(); box.classList.add('dragover'); });
+  box.addEventListener('dragleave', ()=> box.classList.remove('dragover'));
+  box.addEventListener('drop', async e=>{
+    e.preventDefault(); box.classList.remove('dragover');
+    const f = e.dataTransfer.files && e.dataTransfer.files[0]; if(f) await uploadFile(code, f, box, wrap);
+  });
+}
+async function uploadFile(item_code, file, boxEl, wrapEl){
+  const renamed = AU.renameFileKeepExt(file, item_code);
+  const fd = new FormData(); fd.append('file', renamed); fd.append('item_code', item_code);
+  const r = await fetch('/api/upload-image', { method:'POST', body: fd }); const d = await r.json();
+  if(!r.ok){ alert(d.error||r.status); return; }
+// 1) 后端返回的真实路径
+const rawUrl = d.path;
+// 同步隐藏域，便于保存时提交
+const hidden = wrapEl.querySelector('input[data-field="item_image"]'); if(hidden){ hidden.value = rawUrl; }
+// 2) 生成带时间戳的“防缓存”地址
+const bustUrl = rawUrl + (rawUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+
+// 3) 更新缩略图（强制刷新缓存）
+let img = boxEl.querySelector('img.thumb');
+if (img) {
+  // 清理可能存在的 srcset 等，避免某些浏览器继续用缓存
+  img.removeAttribute('srcset');
+  img.src = bustUrl;
+} else {
+  img = document.createElement('img');
+  img.className = 'thumb';
+  img.src = bustUrl;
+  boxEl.prepend(img);
+}
+
+wrapEl.classList.add('has-img');
+
+// 4) 若悬停预览开启，则预览也用 bustUrl，保证看到新图
+if (AU.isHoverEnabled()) showPreview(bustUrl);
+
+// 5) 后台字段仍存原始地址（不带时间戳）
+await fetch('/api/items/'+encodeURIComponent(item_code), {
+  method:'PUT',
+  headers:{'Content-Type':'application/json'},
+  body: JSON.stringify({ item_image: rawUrl })
+});
+
+// 6) 重置文件输入值，避免连续选择同一文件不触发 change
+const fileInputEl = boxEl.querySelector('input[type=file]');
+if (fileInputEl) fileInputEl.value = '';
+
+}
+
+/* 预览功能使用 shared hover_preview.js */
+function showPreview(src){
+  if (!AU.isHoverEnabled()) return;
+  const panel = document.getElementById('img-preview');
+  const imgEl = document.getElementById('img-preview-img');
+  const aOpen = document.getElementById('img-preview-open');
+  resetTransform();
+  imgEl.src = src; aOpen.href = src;
+  panel.style.display='block';
+}
+
+/* ---------- 只提交有改动的字段；空 => null（允许清空） ---------- */
+function collectChangedFields(container){
+  const payload = {};
+  container.querySelectorAll('[data-field]').forEach(el=>{
+    const field = el.getAttribute('data-field');
+    if (field === '__accessories') return; // 附属品单独处理
+    const nowRaw  = (el.value ?? '').trim();
+    const initRaw = (el.getAttribute('data-init') ?? '').trim();
+    const now  = nowRaw  === '' ? null : nowRaw;
+    const init = initRaw === '' ? null : initRaw;
+    if (now !== init) payload[field] = now;
+  });
+  return payload;
+}
+
+/* 金额校验（字段出现时才校验） */
+function __local_checkpair_removed(obj, code){
+  const hasSP = Object.prototype.hasOwnProperty.call(obj, 'starting_price');
+  const hasRP = Object.prototype.hasOwnProperty.call(obj, 'reserve_price');
+  if(!hasSP && !hasRP) return true;
+  const isInt = v => v === null || v === undefined || /^\d+$/.test(String(v));
+  const sp = obj.starting_price, rp = obj.reserve_price;
+  if(!isInt(sp) || !isInt(rp)){ alert(`${code}：金额需为非负整数（万日元）`); return false; }
+  if(sp != null && rp != null && parseInt(sp,10) > parseInt(rp,10)){
+    alert(`${code}：起拍价不能高于底价`); return false;
+  }
+  return true;
+}
+
+/* 单行保存（只提交改动 + 附属品差异） */
+async function saveRow(tr){
+  const code = tr.dataset.code;
+
+  const boxInputEl = tr.querySelector('.box-input');
+  if (BOX_SET.size>0 && boxInputEl && boxInputEl.value && !BOX_SET.has(boxInputEl.value.trim())) {
+    alert('箱号必须为下拉列表中的值'); boxInputEl.focus(); return;
+  }
+
+  const payload = collectChangedFields(tr);
+  if(!AU.checkPricePair(payload, code)) return;
+
+  // 附属品差异
+  const accEl = tr.querySelector('[data-field="__accessories"]');
+  const accNow  = (accEl?.value || '').trim();
+  const accInit = (accEl?.getAttribute('data-init') || '').trim();
+  const accChanged = (accNow !== accInit);
+  const accessories = accNow.split(/[、,]/).map(s=>s.trim()).filter(Boolean);
+
+  if (Object.keys(payload).length === 0 && !accChanged){
+    AU.showToast('无改动'); return;
+  }
+
+  if (Object.keys(payload).length){
+    const res = await fetch('/api/items/'+encodeURIComponent(code), {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const d = await res.json();
+    if(!res.ok){ alert('保存失败：'+(d.error||res.status)); return; }
+  }
+
+  if (accChanged){
+    const res = await fetch('/api/items/'+encodeURIComponent(code)+'/accessories', {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accessories })
+    });
+    const d = await res.json();
+    if(!res.ok){ alert('附属品保存失败：'+(d.error||res.status)); return; }
+  }
+
+  // 同步 data-init
+  tr.querySelectorAll('[data-field]').forEach(el=>{
+    el.setAttribute('data-init', (el.value ?? '').trim());
+  });
+  AU.showToast('保存成功');
+}
+
+/* 删除一行 */
+async function deleteRow(tr){
+  const code = tr.dataset.code;
+  if(!confirm(`确定删除 ${code} 吗？`)) return;
+
+  try{
+    const res = await fetch('/api/items/'+encodeURIComponent(code), { method:'DELETE' });
+    let data, text;
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) data = await res.json();
+    else { text = await res.text(); data = { error: text && text.slice(0,300) }; }
+    if (!res.ok || (data && data.error)) { alert(`删除失败：${(data && data.error) || res.statusText || res.status}`); return; }
+    tr.remove();
+    AU.showToast('已删除', 'success');
+  }catch(err){
+    alert('删除失败：' + (err?.message || err));
+  }
+}
+
+/* 保存全部（只提交改动的行与字段） */
+async function saveAll(){
+  const rows = Array.from(document.querySelectorAll('#tbl tbody tr'));
+  if (!rows.length) { alert('无可保存的数据'); return false; }
+
+  if (BOX_SET.size>0){
+    for (const tr of rows) {
+      const inp = tr.querySelector('.box-input');
+      if (inp && inp.value && !BOX_SET.has(inp.value.trim())) {
+        alert(`内部编号 ${tr.dataset.code} 的箱号不在下拉列表中`);
+        inp.focus(); return false;
+      }
+    }
+  }
+
+  const items = rows.map(tr=>{
+    const d = { item_code: tr.dataset.code };
+
+    // 只提交改动
+    const changed = collectChangedFields(tr);
+    Object.assign(d, changed);
+
+    // 附属品（仅差异）
+    const accEl = tr.querySelector('[data-field="__accessories"]');
+    const now  = (accEl?.value||'').trim();
+    const init = (accEl?.getAttribute('data-init')||'').trim();
+    if (now !== init){
+      d.accessories = now.split(/[、,]/).map(s=>s.trim()).filter(Boolean);
+    }
+    return d;
+  });
+
+  // 金额校验（字段出现时才校验）
+  for(const d of items){
+    if(!AU.checkPricePair(d, d.item_code)) return false;
+  }
+
+  // 仅提交有改动的行
+  const payload = items.filter(d => Object.keys(d).length > 1);
+  if(payload.length === 0){ AU.showToast('没有改动需要保存'); return true; }
+
+  try{
+    const res = await fetch('/api/items/bulk-update', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ items: payload })
+    });
+    const d = await res.json();
+    if(!res.ok){ alert(`保存失败：${d.error || res.status}`); return false; }
+
+    // 同步 data-init
+    rows.forEach(tr=>{
+      tr.querySelectorAll('[data-field]').forEach(el=>{
+        el.setAttribute('data-init', (el.value ?? '').trim());
+      });
+    });
+
+    AU.showToast('保存成功'); return true;
+  }catch(err){
+    alert('保存失败：'+(err?.message||err)); return false;
+  }
+}
+
+/* 顶部按钮与 FAB 事件 */
+document.getElementById('save-all').addEventListener('click', saveAll);
+document.getElementById('save-fab').addEventListener('click', saveAll);
+
+/* Ctrl+S */
+document.addEventListener('keydown', (e)=>{
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault();
+    saveAll();
+  }
+});
+
+/* 悬浮保存按钮（去重：仅保留一处实现） */
+function setupFab(){
+  const fab = document.getElementById('save-fab');
+  const topRow = document.getElementById('top-btn-row');
+  function toggle(){ const rect = topRow.getBoundingClientRect(); fab.style.display = (rect.bottom < 0) ? 'inline-flex' : 'none'; }
+  toggle();
+  window.removeEventListener('scroll', setupFab._handler);
+  setupFab._handler = toggle;
+  window.addEventListener('scroll', toggle, { passive:true });
+}
+
+/* 批量上传（basename === item_code）—— 去重：仅保留一处实现 */
+document.getElementById('folder').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files||[]); if(!files.length) return;
+  const map = {};
+  document.querySelectorAll('#tbl tbody tr').forEach(tr=>{ map[tr.dataset.code] = tr.querySelector('[data-drop]'); });
+  for(const f of files){
+    const basename = (f.name||'').replace(/\.[^.]+$/,'');
+    const code = basename in map ? basename : null;
+    if(!code) continue;
+    const drop = map[code];
+    await uploadFile(code, f, drop, drop.closest('[data-thumb]'));
+  }
+  AU.showToast('批量上传完成');
+});
+
+/* 新增（单件） */
+document.getElementById('add-item-btn').addEventListener('click', async ()=>{
+  const codes = Array.from(document.querySelectorAll('#tbl tbody tr')).map(tr=>tr.dataset.code);
+  const {base, seqs} = analyzeCodes(codes);
+  if(!base){ alert('无法识别编号前缀，当前无数据请先至少创建一件。'); return; }
+  const nextHole = findFirstHole(seqs) ?? (Math.max(0,...seqs)+1);
+  const input = prompt(`输入要新增的序号（留空自动使用 ${nextHole}）`);
+  let seq;
+  if(input===null) return;
+  if(input.trim()===''){ seq = nextHole; }
+  else{
+    seq = parseInt(input.trim(),10);
+    if(!Number.isInteger(seq) || seq<=0){ alert('请输入正整数序号'); return; }
+    if(seqs.has(seq)){ alert('该序号已存在'); return; }
+  }
+  const newCode = `${base}_${seq}`;
+  const ok = await createItems([{ item_code:newCode, stockin_date: DATE, seller_code: SELLER }]);
+  if(ok) await load();
+});
+
+/* 新增（多件） */
+document.getElementById('add-many-btn').addEventListener('click', async ()=>{
+  const nStr = prompt('请输入要新增的件数（正整数）'); if(nStr===null) return;
+  const n = parseInt((nStr||'').trim(),10); if(!Number.isInteger(n) || n<=0){ alert('请输入正整数'); return; }
+  const codes = Array.from(document.querySelectorAll('#tbl tbody tr')).map(tr=>tr.dataset.code);
+  const {base, seqs} = analyzeCodes(codes);
+  if(!base){ alert('无法识别编号前缀，当前无数据请先至少创建一件。'); return; }
+  const start = Math.max(0,...seqs)+1;
+  const items = Array.from({length:n}, (_,i)=> ({ item_code: `${base}_${start+i}`, stockin_date: DATE, seller_code: SELLER }));
+  const ok = await createItems(items);
+  if(ok) await load();
+});
+
+/* 批量创建（后端期望 /api/items/bulk-create） */
+async function createItems(items){
+  try{
+    const res = await fetch('/api/items/bulk-create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ stockin_date: DATE, seller_code: SELLER, items })
+    });
+    const d = await res.json();
+    if(!res.ok){ alert(d.error||res.status); return false; }
+    return true;
+  }catch(err){ alert('创建失败：'+(err?.message||err)); return false; }
+}
+
+/* 编号前缀与序号集合（与旧版一致） */
+function analyzeCodes(codes){
+  let base = null; const seqs = new Set();
+  for(const c of codes){
+    const m = (c||'').match(/^(.*)_(\d+)$/);
+    if(!m) continue;
+    if(!base) base = m[1];
+    seqs.add(parseInt(m[2],10));
+  }
+  return { base, seqs };
+}
+function findFirstHole(seqs){
+  if(!seqs || !seqs.size) return 1;
+  let i=1; while(true){ if(!seqs.has(i)) return i; i++; if(i>1e6) return null; }
+}
+
+
+// ===== 导出（预检缺图 → 下载/打印） =====
+(function bindExportButtons(){
+  const btnX = document.getElementById('btn-export-xlsx');
+  const btnP = document.getElementById('btn-export-pdf');
+
+  async function precheck(){
+    const r = await fetch(`/api/batches/${encodeURIComponent(DATE)}/${encodeURIComponent(SELLER)}/precheck`);
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error||r.statusText);
+    return d;
+  }
+
+  async function go(ext){
+    try{
+      const res = await precheck();
+      if(res.missing && res.missing.length){
+        AU.showToast(`缺少图片：${res.missing.join('、')}`, 'error');
+        return;
+      }
+      window.open(`/download/batches/${encodeURIComponent(DATE)}/${encodeURIComponent(SELLER)}.${ext}`, '_blank');
+    }catch(e){
+      AU.showToast(`导出失败：${e.message||e}`, 'error');
+    }
+  }
+  if(btnX) btnX.addEventListener('click', ()=>go('xlsx'));
+
+if (btnP) btnP.addEventListener('click', async () => {
+  const isMobile = window.matchMedia('(max-width: 640px)').matches;
+  // 关键：在异步之前“占坑”打开窗口/准备跳转，避免被移动端拦截
+  let popup = null;
+  if (isMobile) {
+    // iOS/Android：先同步打开一个 about:blank，占住用户手势
+    popup = window.open('about:blank');
+  }
+  try {
+    const res = await precheck();
+    if (res.missing && res.missing.length) {
+      AU.showToast(`缺少图片：${res.missing.join('、')}`, 'error');
+      if (popup && !popup.closed) popup.close();
+      return;
+    }
+    const url = `/download/batches/${encodeURIComponent(DATE)}/${encodeURIComponent(SELLER)}.pdf`;
+    if (isMobile) {
+      // 同标签或把占坑窗口跳转到真正的下载地址
+      if (popup && !popup.closed) {
+        popup.location.href = url;
+      } else {
+        window.location.href = url;
+      }
+    } else {
+      window.open(url, '_blank');
+    }
+  } catch (e) {
+    if (popup && !popup.closed) popup.close();
+    AU.showToast(`导出失败：${e.message || e}`, 'error');
+  }
+});
+
+
+})();
+
+/* 启动 */
+AU.Dict.loadAll().then(({categories, accessories, boxes, boxSet})=>{ CAT_OPTS=categories; ACC_OPTS=accessories; BOX_OPTS=boxes; BOX_SET=boxSet; }).then(load);
+
+/* 清理空白物品 */
+document.getElementById('btn-clean-empty').addEventListener('click', async ()=>{
+  try{
+    // 1) 预览待删除列表（dry_run）
+    const r1 = await fetch('/api/items/cleanup-empty', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ stockin_date: DATE, seller_code: SELLER, dry_run: true })
+    });
+    const d1 = await r1.json();
+    if (!r1.ok){ alert(d1.error || r1.status); return; }
+
+    const codes = d1.codes || [];
+    if (!codes.length){ AU.showToast('无可删除的空白物品'); return; }
+
+    // 2) 弹窗确认
+    const msg = `将删除以下 ${codes.length} 件：\n` + codes.join('、') + `\n\n确认继续？`;
+    if (!confirm(msg)) return;
+
+    // 3) 执行删除
+    const r2 = await fetch('/api/items/cleanup-empty', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ stockin_date: DATE, seller_code: SELLER, dry_run: false })
+    });
+    const d2 = await r2.json();
+    if (!r2.ok){ alert(d2.error || r2.status); return; }
+
+    AU.showToast(`已删除 ${d2.deleted} 件`);
+    await load();
+  }catch(e){
+    alert('操作失败：' + (e?.message || e));
+  }
+});
+</script>
+
+
+{% endblock %}

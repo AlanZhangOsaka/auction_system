@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">在库管理 / 批次总览</h2>
+
+<div class="center-wrap">
+  <div class="card">
+
+    <!-- 标题栏筛选 -->
+    <div class="filters">
+      <div class="row">
+        <div class="field">
+          <label>入库月份</label>
+          <input id="f-month" type="month" class="input">
+        </div>
+
+        <div class="field">
+          <label>入库日期</label>
+          <!-- 仅展示“有批次”的日期（由脚本动态填充） -->
+          <select id="f-date" class="select">
+            <option value="">年 / 月 / 日</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>出品人</label>
+          <select id="f-seller" class="select">
+            <option value="">全部出品人</option>
+          </select>
+        </div>
+
+        <div class="field checkbox">
+          <label>
+            <input id="f-instock" type="checkbox">
+            仅显示当前有在库
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="btn-reset" class="btn">清空</button>
+        </div>
+      </div>
+
+      <div class="stats" id="stats">—</div>
+    </div>
+    <div id="top-toast" class="top-toast" role="status" aria-live="polite"></div>
+
+    <!-- 列表 -->
+    <div class="table-wrap table-scroll">
+      <table class="table batch-fixed" id="tbl">
+        <colgroup>
+          <col style="width:180px;"> <!-- 批次 -->
+          <col style="width:220px;"> <!-- 出品人名称 -->
+          <col style="width:120px;"> <!-- 批次件数 -->
+          <col style="width:120px;"> <!-- 在库件数 -->
+          <col style="width:180px;"> <!-- 操作 -->
+        </colgroup>
+        <thead>
+          <tr>
+            <th>批次</th>
+            <th>出品人名称</th>
+            <th title="入库登记的件数">批次件数</th>
+            <th>在库件数</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<style>
+/* 版面与卡片 */
+.center-wrap{ max-width: 1200px; margin: 24px auto; }
+.card{ padding:16px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
+
+/* 标题栏筛选 */
+.filters{ border:1px solid #e5e7eb; border-radius:10px; padding:12px; margin-bottom:12px; }
+.filters .row{ display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field label{ font-size:12px; color:#6b7280; line-height:1; }
+.field .input, .field .select{ height:34px; border:1px solid #d1d5db; border-radius:8px; padding:0 8px; min-width: 180px; box-sizing:border-box; }
+.actions{ margin-left:auto; display:flex; gap:8px; }
+.btn{ height:34px; border:1px solid #d1d5db; background:#fff; border-radius:8px; padding:0 12px; cursor:pointer; }
+.btn:hover{ filter:brightness(0.98); }
+.btn.sm{ height:28px; line-height:26px; padding:0 10px; border-radius:8px; font-size:13px; }
+.ops{ display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap; }
+.ops-col{ flex-direction:column; gap:2px; }
+.ops-top{ color:#2563eb; text-decoration:none; font-weight:600; font-size:13px;  margin-bottom:2px; }
+.ops-top:hover{ text-decoration:underline; }
+.ops-bottom{ display:flex; gap:8px; }
+.top-toast{
+  position:fixed; left:50%; top:10px; transform:translateX(-50%);
+  z-index:9999; display:none; background:#ef4444; color:#fff;
+  padding:8px 12px; border-radius:8px; box-shadow:0 8px 18px rgba(0,0,0,.15);
+  font-size:13px; font-weight:600;
+}
+
+.stats{ margin-top:8px; font-size:13px; color:#374151; }
+
+/* 统一输入控件字体（含 month/date/select） */
+.field .input,
+.field .select,
+input[type="month"],
+input[type="date"],
+select{
+  font-family: inherit;
+  font-size: 14px;
+}
+/* WebKit 内部文本也统一 */
+input[type="month"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit{
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* “仅显示当前有在库”做成与下拉同宽同高的胶囊，并水平居中 */
+.field.checkbox{ min-width:180px; }
+.field.checkbox label{
+  display:flex; align-items:center; justify-content:center;
+  height:34px; border:1px solid #d1d5db; border-radius:8px;
+  padding:0 10px; background:#fff; color:#111827; cursor:pointer;
+}
+.field.checkbox input[type="checkbox"]{ width:16px; height:16px; margin-right:6px; }
+
+/* 表格与底部圆角对齐 */
+/* 表格与底部圆角对齐（支持手机端左右滑动） */
+.table-wrap{
+  overflow-x:auto;
+  overflow-y:hidden;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  -webkit-overflow-scrolling:touch; /* iOS 惯性滚动 */
+  touch-action: pan-x pan-y;
+}
+.table{
+  table-layout:fixed;
+  width:100%;              /* 桌面端依然铺满 */
+  border-collapse:separate;
+  border-spacing:0;
+}
+/* 说明：最小宽度由全局 .table-scroll table{min-width:980px} 提供，无需再写一次 */
+
+.table th, .table td{
+  height:44px; line-height:44px;
+  border-bottom:1px solid #e5e7eb; padding:0 8px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  vertical-align:middle;
+  text-align:center;                /* 全部居中 */
+}
+.table thead th{ background:#f8fafc; font-weight:600; line-height:42px; height:42px; }
+.table tbody tr:last-child td{ border-bottom:0; } /* 去掉最后一行底线，圆角贴合 */
+.table tbody tr:last-child td:first-child{ border-bottom-left-radius:12px; }
+.table tbody tr:last-child td:last-child{ border-bottom-right-radius:12px; }
+
+/* 在库数量气泡 */
+.tag-ok, .tag-zero{
+  display:inline-block; min-width:28px; text-align:center;
+  padding:2px 8px; border-radius:999px; font-size:12px; line-height:20px; height:20px;
+}
+.tag-ok{ background:#ecfdf5; color:#065f46; }
+.tag-zero{ background:#f3f4f6; color:#6b7280; }
+
+.link{ color:#2563eb; text-decoration:none; }
+.link:hover{ text-decoration:underline; }
+</style>
+
+<script>
+let ALL = [];      // 原始批次数据
+let SELLERS = [];  // 出品人下拉
+let DATES = [];    // 全部存在的入库日期 YYYY-MM-DD
+let MONTHS = [];   // 全部存在的入库月份 YYYY-MM
+
+const openPrintView = (url)=>{
+  if (window.matchMedia('(max-width: 640px)').matches){
+    window.location.href = url;    // 手机：当前页
+  }else{
+    window.open(url, '_blank');    // 桌面：新标签
+  }
+};
+
+// 拉数据
+async function loadData(){
+  const [bRes, sRes] = await Promise.all([
+    fetch('/api/stock-batches'),
+    fetch('/api/sellers/mini')
+  ]);
+  const batches = await bRes.json();
+  const sellers = await sRes.json();
+
+  ALL = Array.isArray(batches) ? batches : [];
+  SELLERS = Array.isArray(sellers) ? sellers : [];
+
+  DATES = Array.from(new Set(ALL.map(x=>x.stockin_date))).filter(Boolean).sort().reverse();
+  MONTHS = Array.from(new Set(DATES.map(d=>d.slice(0,7)))).sort().reverse();
+
+  mountSellerSelect();
+  mountDateSelect(); // 初次填充所有可选日期
+  render();
+}
+
+function mountSellerSelect(){
+  const sel = document.getElementById('f-seller');
+  sel.innerHTML = '<option value="">全部出品人</option>' + SELLERS.map(s =>
+    `<option value="${s.seller_code}">${s.seller_code}（${s.seller_name||''}）</option>`
+  ).join('');
+}
+
+// 根据当前月份刷新“入库日期”下拉：只保留该月有批次的日期
+function mountDateSelect(){
+  const dateSel = document.getElementById('f-date');
+  const month = document.getElementById('f-month').value; // "YYYY-MM" 或空
+  const usableDates = month ? DATES.filter(d=>d.startsWith(month + '-')) : DATES.slice();
+  dateSel.innerHTML = `<option value="">年 / 月 / 日</option>` + usableDates.map(d=>`<option value="${d}">${d}</option>`).join('');
+}
+
+// 读取筛选条件
+function getFilters(){
+  const m = document.getElementById('f-month').value;
+  const d = document.getElementById('f-date').value;
+  const seller = document.getElementById('f-seller').value;
+  const onlyInStock = document.getElementById('f-instock').checked;
+  return { m, d, seller, onlyInStock };
+}
+
+// 应用筛选
+function applyFilters(list){
+  const { m, d, seller, onlyInStock } = getFilters();
+  return list.filter(row=>{
+    if (m && !String(row.stockin_date||'').startsWith(m + '-')) return false;
+    if (d && String(row.stockin_date||'') !== d) return false;
+    if (seller && (row.seller_code||'') !== seller) return false;
+    if (onlyInStock && !(Number(row.in_stock||0) > 0)) return false;
+    return true;
+  });
+}
+
+// 渲染表格
+function render(){
+  const tbody = document.querySelector('#tbl tbody');
+  tbody.innerHTML = '';
+
+  // 日期倒序 + 出品人编码倒序
+  const data = applyFilters(ALL).slice().sort((a,b)=>{
+    if (a.stockin_date !== b.stockin_date) return a.stockin_date < b.stockin_date ? 1 : -1;
+    return (a.seller_code||'') < (b.seller_code||'') ? 1 : -1;
+  });
+
+  let totalBatches = data.length;
+  let totalInStock = 0;
+
+  data.forEach(row=>{
+    const date = row.stockin_date || '';
+    const scode = row.seller_code || '';
+    const sname = row.seller_name || '';
+    const bc = row.stockin_count ?? '';
+    const tc = row.total_items ?? 0;
+    const instock = row.in_stock ?? 0;
+    totalInStock += Number(instock||0);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <a class="link" href="/inventory/batch/${encodeURIComponent(date)}/${encodeURIComponent(scode)}">
+          ${date.replace(/-/g,'').slice(2)}_${scode}
+        </a>
+      </td>
+      <td>${sname}</td>
+      <td>${bc}</td>
+      <td>${instock > 0 ? `<span class="tag-ok">${instock}</span>` : `<span class="tag-zero">0</span>`}</td>
+      <td>
+        <div class="ops ops-col">
+          <div class="ops-bottom">
+            <button class="btn sm hide-mobile" data-dl="xlsx" data-date="${date}" data-seller="${scode}">导出Excel</button>
+            <button class="btn sm" data-dl="pdf"  data-date="${date}" data-seller="${scode}">导出PDF</button>
+          </div>
+        </div>
+      </td>
+
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('stats').textContent = `共 ${totalBatches} 个批次；在库合计：${totalInStock} 件`;
+}
+
+/* 交互：筛选变化即刷新 */
+document.getElementById('f-month').addEventListener('change', ()=>{
+  mountDateSelect(); // 切换月份时刷新日期选项
+  render();
+});
+document.getElementById('f-date').addEventListener('change', render);
+document.getElementById('f-seller').addEventListener('change', render);
+document.getElementById('f-instock').addEventListener('change', render);
+
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  document.getElementById('f-month').value = '';
+  document.getElementById('f-date').value = '';
+  document.getElementById('f-seller').value = '';
+  document.getElementById('f-instock').checked = false;
+  mountDateSelect();  // 还原为“全部日期”
+  render();
+});
+function showTop(msg, ok=false){
+  const el = document.getElementById('top-toast');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.background = ok ? '#10b981' : '#ef4444';
+  el.style.display = 'block';
+  clearTimeout(showTop._t);
+  showTop._t = setTimeout(()=> el.style.display='none', 2000);
+}
+
+async function precheck(date, seller){
+  const r = await fetch(`/api/batches/${encodeURIComponent(date)}/${encodeURIComponent(seller)}/precheck`);
+  const d = await r.json();
+  if(!r.ok) throw new Error(d.error||r.statusText);
+  return d; // { ok:true, total, missing:[] }
+}
+
+document.getElementById('tbl').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-dl]');
+  if(!btn) return;
+  const ext = btn.getAttribute('data-dl'); // xlsx / pdf
+  const date = btn.getAttribute('data-date');
+  const seller = btn.getAttribute('data-seller');
+  try{
+    const res = await precheck(date, seller);
+    if(res.missing && res.missing.length){
+      showTop(`缺少图片：${res.missing.join('、')}`, false);
+      return;
+    }
+
+const isMobile = window.matchMedia('(max-width: 640px)').matches;
+let popup = null;
+if (isMobile) {
+  popup = window.open('about:blank'); // 先占坑，避免拦截
+}
+try {
+  const res = await precheck();  // 你原有的缺图预检（如果这里是局部函数，请复用）
+  if (res.missing && res.missing.length) {
+    AU.showToast(`缺少图片：${res.missing.join('、')}`, 'error');
+    if (popup && !popup.closed) popup.close();
+    return;
+  }
+  const url = `/download/batches/${encodeURIComponent(date)}/${encodeURIComponent(seller)}.${ext}`;
+  if (isMobile) {
+    if (popup && !popup.closed) {
+      popup.location.href = url;   // 把占坑窗口跳转到真正下载
+    } else {
+      window.location.href = url;  // 或同标签直接跳
+    }
+  } else {
+    window.open(url, '_blank');    // 桌面端照旧
+  }
+} catch (e) {
+  if (popup && !popup.closed) popup.close();
+  AU.showToast(`导出失败：${e.message || e}`, 'error');
+}
+
+
+  }catch(err){
+    showTop(`预检失败：${err.message||err}`, false);
+  }
+});
+
+// 启动
+loadData();
+</script>
+{% endblock %}
