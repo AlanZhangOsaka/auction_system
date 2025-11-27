@@ -281,6 +281,49 @@ def create_app():
         # as_attachment=False 表示内联显示
         return send_file(full, as_attachment=False)
 
+    # === 新增：系统图片缩略图（列表小图用） ===
+    @app.route("/thumb/system/<int:size>/<path:subpath>")
+    def serve_system_thumb(size, subpath):
+        """
+        缩略图接口：
+        /thumb/system/120/2024/2408/240824_A/xxx.jpg
+
+        - size：最长边像素，限定在 40~400 之间
+        - 仅对 /files/system/... 的图片有效
+        - 若没安装 PIL，则回退到原图
+        """
+        # 如果没装 PIL，直接退回原图
+        if Image is None:
+            return serve_system_file(subpath)
+
+        # 限制一下 size，避免太大
+        size = max(40, min(int(size or 120), 400))
+
+        try:
+            full = _safe_join_system_root(subpath)
+        except Exception:
+            abort(400)
+
+        if not os.path.isfile(full):
+            abort(404)
+
+        try:
+            from io import BytesIO
+
+            with Image.open(full) as im:
+                # 转成 RGB，防止某些模式保存 JPEG 出问题
+                im = im.convert("RGB")
+                # 最长边 = size，等比缩放（contain）
+                im.thumbnail((size, size))
+
+                buf = BytesIO()
+                im.save(buf, format="JPEG", quality=80)
+                buf.seek(0)
+            return send_file(buf, mimetype="image/jpeg")
+        except Exception:
+            # 出错时兜底返回原图
+            return serve_system_file(subpath)
+
     # [HTML] 首页：templates/index.html
     @app.route("/")
     def index():
@@ -353,7 +396,7 @@ def create_app():
     def batches_index():
         return render_template("inventory/batches.html")
 
-    # [HTML] 在库管理 - 出库页：templates/inventory/outbound.html
+    # [HTML] 出库页面（不上拍出库）
     @app.route("/inventory/outbound")
     def inventory_outbound():
         return render_template("inventory/outbound.html")
@@ -1234,6 +1277,84 @@ def create_app():
             rows = sort_items_by_code(rows)  # ← 新增统一排序
             return jsonify({"total": len(rows), "items": rows})
 
+        except Exception as e:
+            session.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            session.close()
+
+    # [API] 出库确认（当前仅实现「不上拍出库」）
+    @app.route("/api/outbound/confirm", methods=["POST"])
+    def api_outbound_confirm():
+        """
+        请求体格式：
+        {
+            "item_codes": ["240101_A_001", ...],
+            "method": "post"   # "post" = 邮寄出库, "pickup" = 自提出库
+            "date": "2025-11-27",
+            "ship_type": "EMS / 佐川 / 黑猫 / 顺丰 等（可选，邮寄必填）"
+        }
+        """
+        payload = request.json or {}
+        item_codes = payload.get("item_codes") or []
+        method = (payload.get("method") or "").strip()
+        out_date = (payload.get("date") or "").strip()
+        ship_type = (payload.get("ship_type") or "").strip()
+
+        if not item_codes:
+            return jsonify({"error": "缺少 item_codes"}), 400
+        if method not in ("post", "pickup"):
+            return jsonify({"error": "出库方式必须为 post 或 pickup"}), 400
+        if not out_date:
+            return jsonify({"error": "出库日期不能为空"}), 400
+        if method == "post" and not ship_type:
+            return jsonify({"error": "邮寄出库时必须填写邮寄种类"}), 400
+
+        session = get_session()
+        try:
+            from create_database import Item
+
+            # 当前版本：只处理「不上拍出库」，直接统一改成：
+            #   - 邮寄出库 => 不上拍已寄出
+            #   - 自提出库 => 不上拍已提货
+            # 将来扩展成交品 / 返品时，可以在这里按业务类型选择不同状态
+            if method == "post":
+                target_status = "不上拍已寄出"
+            else:
+                target_status = "不上拍已提货"
+
+            updated = 0
+            for code in item_codes:
+                it = session.get(Item, code)
+                if not it:
+                    continue
+
+                before = {"item_status": it.item_status}
+                it.item_status = target_status
+
+                # 记录操作日志（包含出库方式、日期、邮寄种类）
+                try:
+                    log_op(
+                        session,
+                        "item",
+                        code,
+                        "outbound_confirm",
+                        before=str(before),
+                        after=str({
+                            "item_status": target_status,
+                            "outbound_method": method,
+                            "outbound_date": out_date,
+                            "ship_type": ship_type
+                        })
+                    )
+                except Exception:
+                    # 日志失败不影响主流程
+                    pass
+
+                updated += 1
+
+            session.commit()
+            return jsonify({"ok": True, "updated": updated, "target_status": target_status})
         except Exception as e:
             session.rollback()
             return jsonify({"error": str(e)}), 500
@@ -2576,7 +2697,7 @@ def create_app():
     # [API] 批次列表
     @app.route("/api/stock-batches", methods=["GET"])
     def api_stock_batches():
-        from create_database import StockBatch, Item, Seller
+        from create_database import StockBatch, Item, Seller, ItemStatus
         session = get_session()
         try:
             batches = session.query(StockBatch).all()
@@ -2589,7 +2710,12 @@ def create_app():
                 total_q = session.query(Item).filter(Item.stockin_date == date_key,
                                                      Item.seller_code == scode)
                 total_items = total_q.count()
-                instock_items = total_q.filter(Item.item_status == '在库').count()
+                instock_items = (
+                    total_q
+                    .outerjoin(ItemStatus, Item.item_status == ItemStatus.item_status)
+                    .filter(ItemStatus.group_name == '在库')
+                    .count()
+                )
 
                 sname = None
                 s = session.get(Seller, scode)

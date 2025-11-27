@@ -1,5 +1,762 @@
 {% extends "base.html" %}
+{% block title %}出库管理{% endblock %}
+
 {% block content %}
-<h2>在库管理 / 出库（占位）</h2>
-<p>这里将来放：从返品单执行出库，写入outbound_logs，并联动items状态。</p>
+<div class="page page-inventory">
+  <div class="page-header">
+    <h1 class="page-title">出库管理（不上拍出库）</h1>
+    <p class="page-subtitle">通过内部编号或出品人查询，在待上拍 / 未成交状态下直接出库。</p>
+  </div>
+
+  <div class="card">
+    <!-- 顶部筛选区域 -->
+    <div class="filters">
+      <!-- 第一行：出品人 + 内部编号 + 查询按钮 -->
+      <div class="filter-row">
+        <div class="filter-item">
+          <label for="f-seller" class="filter-label">出品人（姓名 / 代号）</label>
+          <select id="f-seller" class="select">
+            <option value="">全部出品人</option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label for="f-code" class="filter-label">内部编号</label>
+          <input id="f-code" class="input" type="text" placeholder="输入内部编号精确查询">
+        </div>
+
+        <div class="filter-item">
+          <button id="btn-query" class="btn primary">查询</button>
+        </div>
+      </div>
+
+      <!-- 第二行：悬停大图 + 固定编号图片（直接复用原 JS 的 ID，不重写逻辑） -->
+      <div class="filter-row">
+        <label class="checkbox-inline">
+          <input type="checkbox" id="hover-enable">
+          <span>开启悬停大图</span>
+        </label>
+
+        <label class="checkbox-inline">
+          <input type="checkbox" id="freeze-enable">
+          <span>固定编号图片</span>
+        </label>
+
+        <div class="filter-item" style="margin-left:auto;">
+          <span id="query-tip" class="muted">提示：可单独输入内部编号查询，也可按出品人查询。</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主体表格 -->
+    <div class="table-wrap table-scroll" id="tbl-scroll">
+      <table class="table batch-fixed" id="tbl">
+        <colgroup>
+          <col style="width:var(--w-edit);" />    <!-- 多选框 -->
+          <col style="width:var(--w-code);" />    <!-- 内部编号 -->
+          <col style="width:var(--w-img);" />     <!-- 图片 -->
+          <col style="width:var(--w-auction);" /> <!-- 物品状态（借用拍卖会列宽） -->
+          <col style="width:var(--w-cat);" />     <!-- 种类 -->
+          <col style="width:var(--w-name);" />    <!-- 名称 -->
+          <col style="width:var(--w-acc);" />     <!-- 附属品 -->
+        </colgroup>
+
+        <thead>
+        <tr>
+          <th class="th-center">选择</th>
+          <th>内部编号</th>
+          <th>图片</th>
+          <th>物品状态</th>
+          <th>种类</th>
+          <th>名称</th>
+          <th>附属品</th>
+        </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="table-footer">
+      <span id="result-count" class="muted">共 0 件</span>
+    </div>
+  </div>
+
+  <!-- 固定悬停出库面板（不遮挡主体，电脑和手机都固定在右下角） -->
+  <div id="outbound-panel" class="outbound-panel">
+    <div class="outbound-info">
+      当前选中 <span id="count-current" class="strong">0</span> 件，
+      出库单已加入 <span id="count-outbound" class="strong">0</span> 件
+    </div>
+  <div class="outbound-actions">
+    <!-- 左侧：选择相关 -->
+    <button id="btn-select-all" class="btn sm">全选本页</button>
+    <button id="btn-invert" class="btn sm">反选</button>
+    <button id="btn-clear" class="btn sm">取消全选</button>
+
+    <!-- 右侧：出库相关 -->
+    <button id="btn-add-outbound" class="btn sm">加入出库</button>
+    <button id="btn-remove-outbound" class="btn sm">取消出库</button>
+    <button id="btn-show-outbound" class="btn sm">已选定出库</button>
+    <button id="btn-gen-doc" class="btn sm">生成出库单</button>
+    <button id="btn-confirm-outbound" class="btn sm primary">确认出库</button>
+  </div>
+
+  </div>
+
+  <!-- 顶部提示 -->
+  <div id="top-toast" class="top-toast" role="status" aria-live="polite"></div>
+
+  <!-- 预览浮窗（直接复用 batch_edit 中的结构，配合 hover_preview.js 使用） -->
+  <div id="img-preview" class="img-preview" style="left:24px; top:120px;">
+    <div class="img-preview-inner">
+      <div class="preview-header" id="img-preview-drag" title="按住此处可拖动">
+        <span class="drag-handle">⋮⋮</span>
+        <div class="preview-hint">滚轮缩放 · 按住拖动</div>
+        <button id="img-preview-close" class="preview-close" title="关闭">×</button>
+      </div>
+      <div id="preview-body" class="preview-body">
+        <img id="img-preview-img" src="" alt="preview">
+      </div>
+      <div class="preview-actions">
+        <a id="img-preview-open" href="#" target="_blank" rel="noopener">打开图片</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .filters{margin-bottom:16px;}
+  .filter-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    align-items:center;
+    margin-bottom:8px;
+  }
+  .filter-item{display:flex; flex-direction:column; gap:4px;}
+  .filter-label{font-size:13px; color:#6b7280;}
+  .checkbox-inline{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:14px;
+    color:#374151;
+    margin-right:16px;
+  }
+  .checkbox-inline input{transform:scale(1.05);}
+  .muted{color:#6b7280; font-size:13px;}
+  .strong{font-weight:600;}
+  .table-footer{
+    margin-top:8px;
+    font-size:13px;
+    color:#6b7280;
+    display:flex;
+    justify-content:flex-end;
+  }
+
+  /* 出库悬停面板（右下角固定） */
+  .outbound-panel{
+    position:fixed;
+    right:16px;
+    bottom:16px;
+    z-index:40;
+    background:#111827;
+    color:#f9fafb;
+    padding:10px 12px;
+    border-radius:12px;
+    box-shadow:0 10px 25px rgba(15,23,42,0.45);
+    max-width:360px;
+  }
+  .outbound-info{
+    font-size:13px;
+    margin-bottom:6px;
+    white-space:nowrap;
+  }
+  .outbound-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    justify-content:flex-end;
+  }
+  .outbound-panel .btn.sm{
+    padding:2px 8px;
+    font-size:12px;
+    height:26px;
+    line-height:22px;
+  }
+  .outbound-panel .btn.primary{
+    background:#10b981;
+    border-color:#10b981;
+  }
+
+  /* 行选中高亮 */
+  #tbody tr.selected{
+    background:#ecfeff;
+  }
+
+  /* 根据屏幕缩小优化位置 */
+  @media (max-width:640px){
+    .outbound-panel{
+      left:8px;
+      right:8px;
+      bottom:8px;
+      max-width:none;
+    }
+    .outbound-actions{
+      justify-content:space-between;
+    }
+  }
+
+    /* 列表缩略图：统一小尺寸，配合缩略图接口加速 */
+  #tbody img.thumb{
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    display: block;
+    margin:0 auto;
+  }
+
+</style>
+
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hover_preview.js') }}"></script>
+
+<script>
+  // 全局状态
+  let ALL_ITEMS = [];                // 当前查询结果
+  let OUTBOUND_SET = new Set();      // 出库单已加入的 item_code 集合
+  let SHOW_OUTBOUND_ONLY = false;    // 是否处于“已选定出库”视图
+  let LAST_CLICK_INDEX = null;       // 记录上一次点击的行索引，用于 Shift 选区.
+  let SELLERS_OUTBOUND = [];   // 出库页出品人列表（含 keys + 在库件数）
+
+
+
+    // 从原图地址生成缩略图地址（仅 /files/system/... 有效）
+  function buildThumbUrl(full) {
+    if (!full) return '';
+    // 只处理系统图片路径，其它保持原样
+    if (full.startsWith('/files/system/')) {
+      const sub = full.substring('/files/system/'.length);
+      // 120 可以根据需要改成别的尺寸
+      return `/thumb/system/120/${sub}`;
+    }
+    return full;
+  }
+
+
+  function showTop(msg, ok=false){
+    if (window.AU && typeof AU.showToast === 'function'){
+      AU.showToast(msg, ok ? 'success' : 'error');
+      return;
+    }
+    const el = document.getElementById('top-toast');
+    el.textContent = msg;
+    el.style.background = ok ? '#10b981' : '#ef4444';
+    el.style.display = 'block';
+    clearTimeout(showTop._t);
+    showTop._t = setTimeout(()=> el.style.display='none', 1600);
+  }
+
+  function escapeHtml(str){
+    if (str===null || str===undefined) return '';
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
+  function updateCounts(){
+    const current = document.querySelectorAll('#tbody .row-select:checked').length;
+    document.getElementById('count-current').textContent = current;
+    document.getElementById('count-outbound').textContent = OUTBOUND_SET.size;
+  }
+
+    // 全选本页（只选可勾选的）
+  function selectAllCurrent() {
+    document.querySelectorAll('#tbody .row-select:not(:disabled)').forEach(cb => {
+      cb.checked = true;
+      applyRowSelected(cb.closest('tr'), true);
+    });
+    updateCounts();
+  }
+
+  // 反选（只对可勾选的行）
+  function invertSelection() {
+    document.querySelectorAll('#tbody .row-select:not(:disabled)').forEach(cb => {
+      const newVal = !cb.checked;
+      cb.checked = newVal;
+      applyRowSelected(cb.closest('tr'), newVal);
+    });
+    updateCounts();
+  }
+
+  // 取消全选（包括被禁用的行也取消高亮）
+  function clearSelection() {
+    document.querySelectorAll('#tbody .row-select').forEach(cb => {
+      cb.checked = false;
+      applyRowSelected(cb.closest('tr'), false);
+    });
+    updateCounts();
+  }
+
+
+  function applyRowSelected(tr, checked){
+    if (!tr) return;
+    if (checked) tr.classList.add('selected');
+    else tr.classList.remove('selected');
+  }
+
+  function canOutboundByStatus(status){
+    status = status || '';
+    // 只有“待上拍”或“未成交品”可以勾选，其它一律禁止
+    if (status.includes('待上拍')) return {ok:true};
+    if (status.includes('未成交')) return {ok:true};
+    if (status.includes('上拍中')) return {ok:false, reason:'已绑定拍卖会，不能直接出库'};
+    return {ok:false, reason:'当前状态不允许直接出库'};
+  }
+
+  function renderRows(list){
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    ALL_ITEMS = Array.isArray(list) ? list.slice() : [];
+
+    for (const it of ALL_ITEMS){
+      const code = it.item_code || '';
+      const status = it.item_status || '';
+      const chkInfo = canOutboundByStatus(status);
+      const img = it.item_image || '';
+      const thumbUrl = buildThumbUrl(img);
+      const imgHtml = img
+        ? `<img class="thumb" src="${thumbUrl}" data-full="${img}" loading="lazy" alt="">`
+        : '';
+
+
+      const accessories = it.accessories_text || '';
+      const cat = it.item_category || '';
+      const name = it.item_name || '';
+
+      const tr = document.createElement('tr');
+      tr.dataset.code = code;
+
+      const cbAttrs = [
+        'type="checkbox"',
+        'class="row-select"',
+        `data-code="${escapeHtml(code)}"`
+      ];
+      if (!chkInfo.ok){
+        cbAttrs.push('disabled');
+        if (chkInfo.reason){
+          cbAttrs.push(`title="${escapeHtml(chkInfo.reason)}"`);
+        }
+      }
+
+      tr.innerHTML = `
+        <td class="th-center">
+          <input ${cbAttrs.join(' ')} />
+        </td>
+        <td class="mono">${escapeHtml(code)}</td>
+        <td class="td-img">${imgHtml}</td>
+        <td>${escapeHtml(status || '')}</td>
+        <td>${escapeHtml(cat || '')}</td>
+        <td class="text-left">${escapeHtml(name || '')}</td>
+        <td class="text-left">${escapeHtml(accessories || '')}</td>
+      `;
+
+
+      tbody.appendChild(tr);
+    }
+
+        document.getElementById('result-count').textContent = `共 ${ALL_ITEMS.length} 件`;
+
+    // 绑定复选框行高亮（只绑定一次委托事件）
+    if (!tbody._boundChange) {
+      tbody.addEventListener('change', function (e) {
+        const cb = e.target.closest('.row-select');
+        if (!cb) return;
+        applyRowSelected(cb.closest('tr'), cb.checked);
+        updateCounts();
+      });
+      tbody._boundChange = true;
+    }
+
+    updateCounts();
+  }
+
+
+  // 出库页出品人下拉：和 list 相同排序，并支持简繁体/拼音首字母检索
+  async function loadSellers(){
+    try{
+      // 同时获取 mini（含 keys）和 stats（含在库件数）
+      const [miniRes, statRes] = await Promise.all([
+        fetch('/api/sellers/mini'),
+        fetch('/api/sellers/stats')
+      ]);
+
+      const mini = await miniRes.json();
+      const stats = await statRes.json();
+
+      // 统计在库件数，key 用大写 code
+      const countMap = {};
+      (stats || []).forEach(s => {
+        const code = (s.seller_code || '').toUpperCase();
+        countMap[code] = s.item_count || 0;
+      });
+
+      // 生成和 list 相同顺序的 seller 列表
+      SELLERS_OUTBOUND = (mini || []).map(s => {
+        const code = (s.seller_code || '').toUpperCase();
+        return {
+          code,
+          name: s.seller_name || '',
+          keys: s.keys || [],
+          count: countMap[code] || 0
+        };
+      });
+
+      // 初次渲染（不带关键字）
+      renderSellerOptionsForOutbound('');
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  // 根据关键字渲染下拉选项
+  function renderSellerOptionsForOutbound(keyword){
+    const sel = document.getElementById('f-seller');
+    if (!sel) return;
+
+    const current = sel.value || '';
+    const kw = (keyword || '').trim();
+    let list = SELLERS_OUTBOUND;
+
+    if (kw){
+      const kwUpper = kw.toUpperCase();
+      list = SELLERS_OUTBOUND.filter(s => {
+        const code = s.code || '';
+        const name = s.name || '';
+        const keys = s.keys || [];
+
+        // 1) 代号匹配（支持大写/小写）
+        if (code.includes(kwUpper)) return true;
+        // 2) 姓名里包含（中/日文）
+        if (name.includes(kw)) return true;
+        // 3) keys：姓名简体/繁体/拼音缩写（和 list 一样的 keys）
+        return keys.some(k => k.includes(kw) || k.includes(kwUpper));
+      });
+    }
+
+    let html = '<option value="">全部出品人</option>';
+    html += list.map(s => {
+      const disabledAttr = (s.count <= 0)
+        ? ' disabled style="color:#9ca3af;"'
+        : '';
+      return `<option value="${escapeHtml(s.code)}"${disabledAttr}>` +
+             `${escapeHtml(s.code)}｜${escapeHtml(s.name)}（${s.count}）</option>`;
+    }).join('');
+
+    sel.innerHTML = html;
+
+    // 无关键字时，尽量保留原来的选择
+    if (!kw && current){
+      sel.value = current;
+    }
+  }
+
+
+  async function query(){
+    const seller = (document.getElementById('f-seller').value || '').trim();
+    const code = (document.getElementById('f-code').value || '').trim();
+
+    if (!seller && !code){
+      showTop('请先选择出品人或输入内部编号', false);
+      return;
+    }
+
+    try{
+      let items = [];
+      if (code){
+        // 精确按内部编号查询
+        const r = await fetch(`/api/items/${encodeURIComponent(code)}`);
+        if (r.ok){
+          const it = await r.json();
+          // 如果同时选了出品人，但出品人不一致，则视为未找到
+          if (seller && (it.seller_code || '').toUpperCase() !== seller.toUpperCase()){
+            showTop('此件物品暂时无法查找（出品人不匹配）', false);
+            renderRows([]);
+            return;
+          }
+          items = [it];
+        }else{
+          showTop('此件物品暂时无法查找', false);
+          renderRows([]);
+          return;
+        }
+      }else{
+        // 按出品人 + 在库状态查询（不上拍出库只关心在库）
+        const qs = new URLSearchParams({
+          seller_codes: seller,
+          status_group: '在库',
+          page: '1',
+          page_size: '1000'
+        });
+        const r = await fetch(`/api/items?${qs.toString()}`);
+        if (!r.ok){
+          const d = await r.json().catch(()=>({}));
+          throw new Error(d.error || '查询失败');
+        }
+        const d = await r.json();
+        items = d.items || [];
+      }
+
+      renderRows(items);
+      SHOW_OUTBOUND_ONLY = false;  // 查询后回到普通视图
+      OUTBOUND_SET = new Set(
+        Array.from(OUTBOUND_SET).filter(code => items.some(it => it.item_code === code))
+      );
+      updateCounts();
+
+    }catch(e){
+      console.error(e);
+      showTop('查询失败：' + e.message, false);
+    }
+  }
+
+  function getCheckedCodes(){
+    const list = [];
+    document.querySelectorAll('#tbody .row-select:checked').forEach(cb=>{
+      const code = cb.dataset.code;
+      if (code) list.push(code);
+    });
+    return list;
+  }
+
+  function applyOutboundMarkToRows(){
+    document.querySelectorAll('#tbody tr').forEach(tr=>{
+      const code = tr.dataset.code || '';
+      if (!code) return;
+      if (OUTBOUND_SET.has(code)){
+        tr.style.outline = '2px solid #10b981';
+      }else{
+        tr.style.outline = '';
+      }
+    });
+  }
+
+  // “加入出库”：把当前勾选的加入 OUTBOUND_SET，并取消勾选
+  function handleAddOutbound(){
+    const codes = getCheckedCodes();
+    if (!codes.length){
+      showTop('请先勾选要加入出库的物品', false);
+      return;
+    }
+    codes.forEach(c => OUTBOUND_SET.add(c));
+
+    // 取消勾选 & 行高亮恢复
+    document.querySelectorAll('#tbody .row-select:checked').forEach(cb=>{
+      cb.checked = false;
+      applyRowSelected(cb.closest('tr'), false);
+    });
+
+    // 如果当前在“已选定出库”视图，则按新的 OUTBOUND_SET 重新过滤
+    if (SHOW_OUTBOUND_ONLY){
+      const filtered = ALL_ITEMS.filter(it => OUTBOUND_SET.has(it.item_code));
+      renderRows(filtered);
+    }
+
+    applyOutboundMarkToRows();
+    updateCounts();
+  }
+
+
+  // “取消出库”：从 OUTBOUND_SET 中移除当前勾选
+  function handleRemoveOutbound(){
+    const codes = getCheckedCodes();
+    if (!codes.length){
+      showTop('请先勾选要取消出库的物品', false);
+      return;
+    }
+    codes.forEach(c => OUTBOUND_SET.delete(c));
+
+    document.querySelectorAll('#tbody .row-select:checked').forEach(cb=>{
+      cb.checked = false;
+      applyRowSelected(cb.closest('tr'), false);
+    });
+
+    // 如果当前在“已选定出库”视图，则刷新列表
+    if (SHOW_OUTBOUND_ONLY){
+      const filtered = ALL_ITEMS.filter(it => OUTBOUND_SET.has(it.item_code));
+      renderRows(filtered);
+    }
+
+    applyOutboundMarkToRows();
+    updateCounts();
+  }
+
+
+  // “已选定出库”：只显示 OUTBOUND_SET 里的物品
+  function handleShowOutbound(){
+    if (!OUTBOUND_SET.size){
+      showTop('当前出库单中还没有任何物品', false);
+      return;
+    }
+    SHOW_OUTBOUND_ONLY = true;
+    const filtered = ALL_ITEMS.filter(it => OUTBOUND_SET.has(it.item_code));
+    renderRows(filtered);
+    applyOutboundMarkToRows();
+    updateCounts();
+  }
+
+
+  // “生成出库单”：先占位
+  function handleGenDoc(){
+    if (!OUTBOUND_SET.size){
+      showTop('请先选择要出库的物品', false);
+      return;
+    }
+    showTop('生成出库单功能稍后实现（暂为占位）', true);
+  }
+
+  // “确认出库”：弹窗 + 调用 /api/outbound/confirm
+  async function handleConfirmOutbound(){
+    if (!OUTBOUND_SET.size){
+      showTop('请先选择要出库的物品', false);
+      return;
+    }
+
+    const method = window.prompt('出库方式：输入 1 = 邮寄出库，2 = 自提出库', '1');
+    if (method !== '1' && method !== '2'){
+      showTop('已取消出库操作', false);
+      return;
+    }
+    const methodKey = (method === '1') ? 'post' : 'pickup';
+
+    const dftDate = new Date().toISOString().slice(0,10);
+    const date = window.prompt('出库日期（YYYY-MM-DD）', dftDate) || '';
+    if (!date){
+      showTop('出库日期不能为空', false);
+      return;
+    }
+
+    let shipType = '';
+    if (methodKey === 'post'){
+      shipType = window.prompt('邮寄种类（EMS / 佐川 / 黑猫 / Fedex / 顺丰 等，可自由填写）', '') || '';
+      if (!shipType.trim()){
+        showTop('邮寄出库时必须填写邮寄种类', false);
+        return;
+      }
+    }
+
+    try{
+      const body = {
+        item_codes: Array.from(OUTBOUND_SET),
+        method: methodKey,
+        date: date,
+        ship_type: shipType
+      };
+      const r = await fetch('/api/outbound/confirm', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok){
+        throw new Error(d.error || '出库失败');
+      }
+      showTop(`出库成功：已更新 ${d.updated||0} 件（状态：${d.target_status||''}）`, true);
+      // 出库成功后，清空出库单，并刷新当前查询结果
+      OUTBOUND_SET.clear();
+      updateCounts();
+      query();
+    }catch(e){
+      console.error(e);
+      showTop('出库失败：' + e.message, false);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // 加载出品人（mini + stats），并按关键字渲染
+    loadSellers();
+
+    // 出品人下拉：双击可按姓名 / 拼音首字母 / 代号筛选
+    const sellerSel = document.getElementById('f-seller');
+    if (sellerSel) {
+      sellerSel.title = '双击可按姓名/拼音首字母/出品人代号筛选';
+      sellerSel.addEventListener('dblclick', () => {
+        const kw = window.prompt(
+          '输入出品人姓名 / 简体 / 繁体 / 拼音首字母 / 出品人代号进行筛选（留空显示全部）',
+          ''
+        );
+        if (kw === null) return; // 取消
+        renderSellerOptionsForOutbound(kw);
+      });
+    }
+
+    document.getElementById('btn-query').addEventListener('click', query);
+    document.getElementById('f-code').addEventListener('keydown', e => {
+      if (e.key === 'Enter') query();
+    });
+
+    document.getElementById('btn-add-outbound').addEventListener('click', handleAddOutbound);
+    document.getElementById('btn-remove-outbound').addEventListener('click', handleRemoveOutbound);
+    document.getElementById('btn-show-outbound').addEventListener('click', handleShowOutbound);
+    document.getElementById('btn-gen-doc').addEventListener('click', handleGenDoc);
+    document.getElementById('btn-confirm-outbound').addEventListener('click', handleConfirmOutbound);
+
+    // 多选操作按钮
+    document.getElementById('btn-select-all').addEventListener('click', selectAllCurrent);
+    document.getElementById('btn-invert').addEventListener('click', invertSelection);
+    document.getElementById('btn-clear').addEventListener('click', clearSelection);
+
+    // 悬停大图：调用公共 hover_preview.js
+    try {
+      if (typeof bindPreview === 'function') bindPreview();
+    } catch (e) {
+      console && console.warn(e);
+    }
+
+    const tbody = document.getElementById('tbody');
+    if (tbody) {
+      // 悬停大图
+      tbody.addEventListener('mouseover', (e) => {
+        const img = e.target.closest('img.thumb');
+        if (!img) return;
+
+        if (window.AU && typeof AU.isHoverEnabled === 'function' && !AU.isHoverEnabled()) return;
+
+        const src = img.getAttribute('data-full') || img.src;
+        if (src && typeof showPreview === 'function') showPreview(src);
+      });
+
+      // Shift 区域选择
+      tbody.addEventListener('click', (e) => {
+        const cb = e.target.closest('.row-select');
+        if (!cb) return;
+
+        const all = Array.from(tbody.querySelectorAll('.row-select'));
+        const idx = all.indexOf(cb);
+
+        // 按住 Shift：按最后一次点击位置到当前行成区间
+        if (e.shiftKey && LAST_CLICK_INDEX !== null && idx !== LAST_CLICK_INDEX) {
+          const [start, end] = idx > LAST_CLICK_INDEX
+            ? [LAST_CLICK_INDEX, idx]
+            : [idx, LAST_CLICK_INDEX];
+
+          const targetChecked = cb.checked;
+          for (let i = start; i <= end; i++) {
+            const c = all[i];
+            if (!c || c.disabled || c === cb) continue;
+            c.checked = targetChecked;
+            applyRowSelected(c.closest('tr'), targetChecked);
+          }
+          updateCounts();
+        }
+        LAST_CLICK_INDEX = idx;
+      });
+    }
+  });
+
+
+</script>
 {% endblock %}
