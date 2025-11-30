@@ -12,13 +12,13 @@ from flask import Flask, render_template, jsonify, request, abort
 from config import DEBUG, HOST, PORT
 
 # 复用你已定义的 SQLAlchemy 模型与会话（在 create_database.py 中）
-from create_database import get_session, Item, Seller, Auction, Buyer, OperationLog, MaterialOption
+from create_database import get_session, Item, Seller, Auction, Buyer, OperationLog, MaterialOption, OutboundLog
 
 from decimal import Decimal, InvalidOperation
-from sqlalchemy import text
 import os
 from werkzeug.utils import secure_filename
 import shutil
+import json
 # —— 导出所需 & 下载 ——
 from flask import send_file
 from pathlib import Path
@@ -1310,7 +1310,17 @@ def create_app():
         if method == "post" and not ship_type:
             return jsonify({"error": "邮寄出库时必须填写邮寄种类"}), 400
 
+        # 解析出库日期为 date 对象
+        try:
+            outbound_date_obj = datetime.strptime(out_date, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "出库日期格式必须为 YYYY-MM-DD"}), 400
+
+        # 操作人（暂时写死，后面接入登录后可改）
+        operator = "admin"
+
         session = get_session()
+
         try:
             from create_database import Item
 
@@ -1350,6 +1360,38 @@ def create_app():
                 except Exception:
                     # 日志失败不影响主流程
                     pass
+
+                # 新增：记录出库日志（结构化信息）
+                # - outbound_date: 出库日期（前端输入）
+                # - recorded_at: 录入日期时间（系统当前）
+                # - seller_name / seller_code: 出品人
+                # - item_code: 物品编号
+                # - auction_id / lot_number: 场次 & LOT（拍卖会功能完成后可补齐，目前先 None）
+                # - operator: 操作人
+                # - method: 出库方式（post / pickup）
+                # - ship_type: 快递种类（仅邮寄时有效）
+                log_payload = {
+                    "outbound_date": out_date,
+                    "recorded_at": datetime.utcnow().isoformat(timespec="seconds"),
+                    "seller_name": it.seller_name,
+                    "seller_code": it.seller_code,
+                    "item_code": code,
+                    "auction_id": None,
+                    "lot_number": None,
+                    "operator": operator,
+                    "method": method,
+                    "ship_type": ship_type if method == "post" else ""
+                }
+
+                outbound_log = OutboundLog(
+                    item_code=code,
+                    outbound_type="other",  # 不上拍直接出库
+                    ref_id=None,  # 将来有“出库单号”等再用
+                    outbound_date=outbound_date_obj,
+                    handled_by=operator,
+                    notes=json.dumps(log_payload, ensure_ascii=False)
+                )
+                session.add(outbound_log)
 
                 updated += 1
 
@@ -2862,16 +2904,17 @@ def create_app():
         session = get_session()
         try:
             from sqlalchemy import text
+            # 只统计「在库」分组的物品数量
             sql = text("""
-                SELECT s.seller_code, s.seller_name, COALESCE(cnt.c, 0) AS item_count
-                FROM sellers s
-                LEFT JOIN (
-                    SELECT seller_code, COUNT(*) AS c
-                    FROM items
-                    GROUP BY seller_code
-                ) cnt ON cnt.seller_code = s.seller_code
-                ORDER BY s.seller_code ASC
-            """)
+                       SELECT s.seller_code, s.seller_name, COALESCE(cnt.c, 0) AS item_count
+                       FROM sellers s
+                                LEFT JOIN (SELECT i.seller_code, COUNT(*) AS c
+                                           FROM items i
+                                                    LEFT JOIN item_statuses st ON st.item_status = i.item_status
+                                           WHERE st.group_name = '在库'
+                                           GROUP BY i.seller_code) cnt ON cnt.seller_code = s.seller_code
+                       ORDER BY s.seller_code ASC
+                       """)
             rows = session.execute(sql).fetchall()
             data = [
                 {
