@@ -515,7 +515,7 @@ def create_app():
                 import re
                 sec_pattern = re.compile(r"^sections\[(\d+)\]\[(\w+)\]$")
 
-                sections_form: dict[int, dict[str, str]] = {}
+                sections_form = {}
                 for key in form.keys():
                     m = sec_pattern.match(key)
                     if not m:
@@ -526,20 +526,17 @@ def create_app():
 
                 keep_list = []  # (前端order, 原order, Section对象)
 
-                # 当前所有专场，用原来的 section_order 定位
-                existing_secs = session.query(Section).filter(
-                    Section.auction_id == auction_id
-                ).all()
-                sec_by_order = {s.section_order: s for s in existing_secs}
-
                 for orig_order, data in sections_form.items():
-                    sec = sec_by_order.get(orig_order)
+                    sec = session.query(Section).filter(
+                        Section.auction_id == auction_id,
+                        Section.section_order == orig_order
+                    ).first()
                     if not sec:
                         continue
 
                     deleted_flag = (data.get("deleted") or "").strip()
                     if deleted_flag == "1":
-                        # 删除
+                        # 删除专场
                         session.delete(sec)
                         continue
 
@@ -565,39 +562,30 @@ def create_app():
                     if new_section_name:
                         new_sec = Section(
                             auction_id=auction_id,
-                            section_order=0,  # 临时值，下面统一重新编号
+                            section_order=0,  # 暂存，下面统一重新编号
                             section_name=new_section_name,
                             section_date=new_section_date
                         )
                         session.add(new_sec)
-                        # 让它一定排到最后
+                        # 给一个很大的排序值，确保排在最后
                         keep_list.append((10 ** 9, 10 ** 9, new_sec))
 
                 # ---------- 统一重新编号 section_order ----------
-                # 先按前端 order 升序，再按原 order 稳定排序
+                # 按前端 order 升序，再按原始 order 稳定排序
                 keep_list.sort(key=lambda t: (t[0], t[1]))
-
-                # 第一步：给所有保留的专场一个“临时大编号”，避免 UNIQUE(auction_id, section_order) 冲突
-                temp_base = 1000
-                for idx, (_, __, sec) in enumerate(keep_list, start=1):
-                    sec.section_order = temp_base + idx
-
-                session.flush()  # 把临时值写进数据库，此时不会与旧值冲突
-
-                # 第二步：再从 1 开始连续编号
                 for idx, (_, __, sec) in enumerate(keep_list, start=1):
                     sec.section_order = idx
 
-                # 更新拍卖会的专场数量（只统计未删除的）
+                # 更新拍卖会的专场数量
                 auction.auction_section_count = len(keep_list)
 
                 session.commit()
 
-            # GET 或 POST 提交后重新查询专场列表
+            # GET 或 POST 之后重新查询专场列表
             sections = session.query(Section) \
-                              .filter(Section.auction_id == auction_id) \
-                              .order_by(Section.section_order) \
-                              .all()
+                .filter(Section.auction_id == auction_id) \
+                .order_by(Section.section_order) \
+                .all()
 
             return render_template(
                 "auctions/detail.html",
@@ -610,8 +598,6 @@ def create_app():
             raise
         finally:
             session.close()
-
-
 
     # [HTML] 拍卖会物品管理（占位页，后续实现添加/删除物品、选择专场）
     @app.route("/auctions/<auction_id>/items", methods=["GET"])
@@ -678,7 +664,7 @@ def create_app():
         return render_template("settings/accessory_types.html", title="附属品设置")
 
     # ==================== 拖拽排序 API（新增，不影响原有 CRUD） ====================
-    from sqlalchemy import text, func
+    from sqlalchemy import text, func, or_
 
     # [HTML] 设置 - 材质选项管理页
     @app.route("/settings/material-options", methods=["GET"])
@@ -1620,6 +1606,8 @@ def create_app():
         - 仅允许从“待上拍”状态加入拍卖会；
         - 加入时自动分配 LOT 号（当前拍卖会最大 LOT + 1）；
         - 成功后：items.item_status = "上拍中"。
+        - 同一时间（一段拍卖日期区间）内，一件物品只允许属于一个拍卖会；
+          拍卖会日期不重叠时，可以参加多次拍卖。
         """
         payload = request.get_json(silent=True) or {}
         item_codes = payload.get("item_codes") or []
@@ -1632,41 +1620,161 @@ def create_app():
             if not auction:
                 return jsonify({"error": f'拍卖会 {auction_id} 不存在'}), 404
 
+            # 当前拍卖会的拍卖日期区间
+            cur_start = auction.auction_start_date
+            cur_end = auction.auction_end_date or auction.auction_start_date
+
             # 当前拍卖会的最大 LOT 号
-            max_lot = session.query(func.max(AuctionItem.lot_number))\
-                             .filter(AuctionItem.auction_id == auction_id)\
-                             .scalar() or 0
+            max_lot = session.query(func.max(AuctionItem.lot_number)) \
+                          .filter(AuctionItem.auction_id == auction_id) \
+                          .scalar() or 0
 
             added = 0
+            skipped_status = []  # 不是“待上拍”状态
+            skipped_exists = []  # 已在本拍卖会中
+            conflicts = []  # 与其他拍卖会日期冲突
+
             for code in item_codes:
                 it = session.get(Item, code)
                 if not it:
                     continue
 
-                status = it.item_status or ''
-                if '待上拍' not in status:
-                    # 暂时只允许“待上拍”的物品加入拍卖会
+                status = it.item_status or ""
+                if "待上拍" not in status:
+                    # 不是“待上拍”的物品，跳过
+                    skipped_status.append(code)
                     continue
 
+                # 1) 是否已经在本拍卖会中（防止重复插入）
+                exists_here = session.query(AuctionItem).filter(
+                    AuctionItem.auction_id == auction_id,
+                    AuctionItem.item_code == code
+                ).first()
+                if exists_here:
+                    skipped_exists.append(code)
+                    continue
+
+                # 2) 是否与其他拍卖会存在“日期重叠”的冲突
+                if cur_start and cur_end:
+                    # 只考虑起止日期都不为空的其他拍卖会
+                    q = (
+                        session.query(AuctionItem, Auction)
+                        .join(Auction, AuctionItem.auction_id == Auction.auction_id)
+                        .filter(
+                            AuctionItem.item_code == code,
+                            Auction.auction_id != auction_id,
+                            Auction.auction_start_date.isnot(None),
+                            Auction.auction_end_date.isnot(None),
+                            # 区间有交集：不是（旧的完全在当前之前 或 旧的完全在当前之后）
+                            ~or_(
+                                Auction.auction_end_date < cur_start,
+                                Auction.auction_start_date > cur_end,
+                            ),
+                        )
+                    )
+                    row = q.first()
+                    if row:
+                        ai2, auc2 = row
+                        conflicts.append({
+                            "item_code": code,
+                            "auction_id": auc2.auction_id,
+                            "auction_name": auc2.auction_name,
+                            "start": auc2.auction_start_date.isoformat() if auc2.auction_start_date else None,
+                            "end": auc2.auction_end_date.isoformat() if auc2.auction_end_date else None,
+                        })
+                        # 这一件跳过，不加入当前拍卖会
+                        continue
+
+                # 走到这里说明可以正常加入当前拍卖会
                 max_lot += 1
                 ai = AuctionItem(
                     auction_id=auction_id,
                     lot_number=max_lot,
-                    item_code=code
+                    item_code=code,
                 )
                 session.add(ai)
 
                 # 状态改为“上拍中”
-                it.item_status = '上拍中'
+                it.item_status = "上拍中"
                 added += 1
 
             session.commit()
-            return jsonify({"ok": True, "added": added, "auction_id": auction_id})
+            return jsonify({
+                "ok": True,
+                "added": added,
+                "auction_id": auction_id,
+                "skipped_status": skipped_status,
+                "skipped_exists": skipped_exists,
+                "conflicts": conflicts,
+            })
         except Exception as e:
             session.rollback()
             return jsonify({"error": str(e)}), 500
         finally:
             session.close()
+
+    # [API] 供在库列表批量加入拍卖会使用：返回未结束的拍卖会
+    # [API] 供在库列表批量加入拍卖会使用：返回拍卖会列表
+    @app.route("/api/auctions/options_for_items", methods=["GET"])
+    def api_auction_options_for_items():
+        session = get_session()
+        try:
+            # 不再按结束日期过滤，全部拍卖会都返回
+            auctions = (
+                session.query(Auction)
+                .order_by(Auction.auction_order)
+                .all()
+            )
+
+            out = []
+            for a in auctions:
+                # label：优先显示 “XX回（YYYY-MM-DD）”
+                date_str = (
+                    a.auction_start_date.strftime("%Y-%m-%d")
+                    if a.auction_start_date else ""
+                )
+                order_display = a.auction_order if a.auction_order is not None else ""
+
+                if order_display and date_str:
+                    label = f"{order_display}回（{date_str}）"
+                elif order_display:
+                    label = f"{order_display}回"
+                elif date_str:
+                    label = date_str
+                else:
+                    # 都没有时退回到拍卖会名称或ID
+                    label = a.auction_name or str(a.auction_id)
+
+                out.append({
+                    "auction_id": a.auction_id,
+                    "auction_order": a.auction_order,
+                    "label": label,
+                })
+
+            return jsonify({"ok": True, "auctions": out})
+
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+        finally:
+            session.close()
+
+            out = []
+            for a in auctions:
+                # label：例如“15回（2025-12-04）”
+                date_str = (
+                    a.auction_start_date.strftime("%Y-%m-%d")
+                    if a.auction_start_date else ""
+                )
+                label = f"{a.auction_order}回（{date_str}）"
+
+                out.append({
+                    "auction_id": a.auction_id,
+                    "auction_order": a.auction_order,
+                    "label": label
+                })
+
+            return jsonify({"ok": True, "auctions": out})
+
 
     # [API] 出库确认（当前仅实现「不上拍出库」）
     @app.route("/api/outbound/confirm", methods=["POST"])

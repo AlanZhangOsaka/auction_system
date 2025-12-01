@@ -84,12 +84,23 @@
 
       <!-- 左侧常驻批量操作面板 -->
 <div id="bulk-panel" class="bulk-panel">
-  <div class="bulk-title">批量操作</div>
+  <div class="bulk-title" id="bulk-panel-drag">批量操作</div>
   <div class="bulk-buttons">
     <button type="button" class="btn sm" id="bulk-select-all">全选</button>
     <button type="button" class="btn sm" id="bulk-select-none">反选</button>
     <button type="button" class="btn sm" id="bulk-select-clear">清空</button>
   </div>
+
+
+  <!-- 新增：批量加入拍卖会 -->
+  <div class="bulk-field">
+    <label>加入拍卖会</label>
+    <select id="bulk-auction-select" class="input">
+      <option value="">请选择拍卖会</option>
+    </select>
+    <button type="button" class="btn sm" id="bulk-add-to-auction">加入</button>
+  </div>
+
   <div class="bulk-field">
     <label>修改种类至</label>
     <select id="bulk-cat" class="input"></select>
@@ -144,7 +155,11 @@
   <th class="th th-center freeze-col freeze-1">内部编号</th>
   <!-- 冻结列2：图片 -->
   <th class="th th-center freeze-col freeze-2">图片</th>
-  <th class="th th-center">拍卖会</th>
+  <th class="th th-center">
+    拍卖会
+    <button type="button" class="th-filter" id="auction-filter-btn" title="按拍卖会筛选">▾</button>
+  </th>
+
   <th class="th">位置/箱号
     <button class="th-filter" data-field="loc" title="筛选">▾</button>
   </th>
@@ -194,6 +209,18 @@
     <div class="xthumb" id="xthumb"></div>
   </div>
 </div> <!-- table-wrap -->
+
+        <!-- 拍卖会列前端多选筛选面板 -->
+<div id="auction-filter-panel"
+     style="display:none; position:absolute; z-index:9999; background:#ffffff; border:1px solid #d1d5db; border-radius:6px; box-shadow:0 4px 10px rgba(0,0,0,.15); padding:8px; min-width:160px; max-height:260px; overflow:auto; font-size:12px;">
+  <div id="auction-filter-body"></div>
+  <div style="margin-top:6px; text-align:right;">
+    <button type="button" class="btn sm" id="auction-filter-apply">应用</button>
+    <button type="button" class="btn sm" id="auction-filter-clear">清除</button>
+  </div>
+</div>
+
+
   </div> <!-- .card -->
   </div> <!-- .center-wrap -->
 
@@ -515,16 +542,11 @@ async function loadNextPage(){
   }
 }
 
-
-
-
-
-
 function renderRows(items){
     const fmt = (v)=> (v===null || v===undefined) ? '' : v;
     const rows = [];
     for (const it of items){
-      const auction = '';  // 当前无拍卖会字段，保持占位
+      const auction = fmt(it.auction_label || it.current_auction || '');
       const code = fmt(it.item_code);
       const img = fmt(it.item_image);
       const imgHtml = img ? `<img class="thumb" src="${img}" data-full="${img}" alt="">` : '';
@@ -697,7 +719,7 @@ document.addEventListener('click', (e)=>{
         <!-- 冻结列2：图片 -->
         <td class="td-img freeze-col freeze-2">${imgHtml}</td>
         <!-- 冻结列3：拍卖会（移位后） -->
-        <td class="td-center">${auction}</td>
+        <td class="td-center" data-col="auction">${auction}</td>
         <td>${locBox}</td>
         <td>${selCat(cat)}</td>
         <td>${inp(name, 'item_name', '名称')}</td>
@@ -942,6 +964,104 @@ if (btnEmpty){
 })();
 </script>
 
+<script>
+// ===== 拍卖会列前端多选筛选 =====
+let AUCTION_FILTER_VALUES = new Set();
+
+(function(){
+  const btn   = document.getElementById('auction-filter-btn');
+  const panel = document.getElementById('auction-filter-panel');
+  const body  = document.getElementById('auction-filter-body');
+  const btnApply = document.getElementById('auction-filter-apply');
+  const btnClear = document.getElementById('auction-filter-clear');
+  if (!btn || !panel || !body) return;
+
+  function buildOptions(){
+    const vals = new Set();
+    document.querySelectorAll('td[data-col="auction"]').forEach(td=>{
+      const txt = (td.textContent || '').trim();
+      if (!txt) return;
+      txt.split(/[、,]/).forEach(part=>{
+        const v = part.trim();
+        if (v) vals.add(v);
+      });
+    });
+    body.innerHTML = '';
+    if (!vals.size){
+      body.textContent = '当前无拍卖会数据';
+      return;
+    }
+    Array.from(vals).sort().forEach(v=>{
+      const id = 'auction-filter-' + v.replace(/\s+/g,'_');
+      const checked = AUCTION_FILTER_VALUES.has(v) ? 'checked' : '';
+      body.insertAdjacentHTML('beforeend', `
+        <label style="display:block; margin:2px 0; cursor:pointer;">
+          <input type="checkbox" id="${id}" value="${v}" ${checked}> ${v}
+        </label>
+      `);
+    });
+  }
+
+  // 点击表头三角：弹出面板
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    buildOptions();
+    const rect = btn.getBoundingClientRect();
+    panel.style.left = (window.scrollX + rect.left) + 'px';
+    panel.style.top  = (window.scrollY + rect.bottom + 4) + 'px';
+    panel.style.display = 'block';
+  });
+
+  // 应用筛选
+  btnApply.addEventListener('click', ()=>{
+    AUCTION_FILTER_VALUES.clear();
+    body.querySelectorAll('input[type="checkbox"]:checked').forEach(chk=>{
+      AUCTION_FILTER_VALUES.add(chk.value);
+    });
+    panel.style.display = 'none';
+    applyAuctionFilter();
+  });
+
+  // 清除筛选
+  btnClear.addEventListener('click', ()=>{
+    AUCTION_FILTER_VALUES.clear();
+    panel.style.display = 'none';
+    applyAuctionFilter();
+  });
+
+  // 点击面板外关闭
+  document.addEventListener('click', (e)=>{
+    if (panel.style.display !== 'block') return;
+    if (panel.contains(e.target) || e.target === btn) return;
+    panel.style.display = 'none';
+  });
+})();
+
+// 实际过滤逻辑：只对当前已加载的行生效
+function applyAuctionFilter(){
+  const has = AUCTION_FILTER_VALUES.size > 0;
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    if (!has){
+      tr.style.display = '';
+      return;
+    }
+    const td = tr.querySelector('td[data-col="auction"]');
+    if (!td){
+      tr.style.display = 'none';
+      return;
+    }
+    const txt = (td.textContent || '').trim();
+    if (!txt){
+      tr.style.display = 'none';
+      return;
+    }
+    const parts = txt.split(/[、,]/).map(s=>s.trim()).filter(Boolean);
+    const ok = parts.some(p => AUCTION_FILTER_VALUES.has(p));
+    tr.style.display = ok ? '' : 'none';
+  });
+}
+</script>
+
 
 <script>
 /* 收集一行中发生了改动的字段 */
@@ -1058,6 +1178,122 @@ async function saveAll(){
 }
 
 document.getElementById('save-all').addEventListener('click', saveAll);
+
+// ===== 批量加入拍卖会：下拉选择 + 加入后更新“拍卖会”列 =====
+
+// 加载可选拍卖会（只取未结束的拍卖会）
+// 注意：需要在 app.py 中实现 GET /api/auctions/options_for_items
+async function loadAuctionOptionsForJoin(){
+  const sel = document.getElementById('bulk-auction-select');
+  if (!sel) return;
+  try{
+    const res = await fetch('/api/auctions/options_for_items');
+    const data = await res.json();
+    if (!res.ok || data.ok === false){
+      console.warn('加载拍卖会列表失败', data.error || res.status);
+      return;
+    }
+    sel.innerHTML = '<option value="">请选择拍卖会</option>';
+    (data.auctions || []).forEach(a=>{
+      const opt = document.createElement('option');
+      opt.value = a.auction_id;
+      // 显示文案可以是“15回（2025-12-04）”
+      opt.textContent = a.label || `${a.auction_order}回`;
+      if (a.auction_order != null){
+        opt.dataset.order = a.auction_order;
+      }
+      sel.appendChild(opt);
+    });
+  }catch(e){
+    console.warn('加载拍卖会列表失败', e);
+  }
+}
+document.addEventListener('DOMContentLoaded', loadAuctionOptionsForJoin);
+
+// 批量：选中物品加入拍卖会
+const btnBulkAddToAuction = document.getElementById('bulk-add-to-auction');
+if (btnBulkAddToAuction){
+  btnBulkAddToAuction.addEventListener('click', async ()=>{
+    // 收集勾选行的内部编号
+    const checked = Array.from(document.querySelectorAll('.row-select:checked'));
+    const codes = checked.map(el => el.value).filter(Boolean);
+    if (!codes.length){
+      alert('请先勾选要加入拍卖会的物品');
+      return;
+    }
+
+    // 读取下拉选择的拍卖会
+    const sel = document.getElementById('bulk-auction-select');
+    if (!sel){
+      alert('找不到拍卖会下拉框');
+      return;
+    }
+    const aid = sel.value;
+    const opt = sel.selectedOptions[0];
+    if (!aid || !opt){
+      alert('请选择要加入的拍卖会');
+      return;
+    }
+
+    // 用于显示在列表里的“回数”文字
+    const label = opt.dataset.order ? `${opt.dataset.order}回` : opt.textContent.trim();
+
+    try{
+      const res = await fetch(`/api/auctions/${encodeURIComponent(aid)}/items`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ item_codes: codes }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.ok === false){
+        alert(data.error || '加入拍卖会失败');
+        return;
+      }
+
+      let msg = `已成功加入 ${data.added || 0} 件物品到拍卖会 ${data.auction_id || aid}。`;
+
+      if (Array.isArray(data.skipped_status) && data.skipped_status.length){
+        msg += `\n\n以下物品不是“待上拍”状态，已跳过：\n` + data.skipped_status.join(', ');
+      }
+      if (Array.isArray(data.skipped_exists) && data.skipped_exists.length){
+        msg += `\n\n以下物品已在该拍卖会中，未重复添加：\n` + data.skipped_exists.join(', ');
+      }
+      if (Array.isArray(data.conflicts) && data.conflicts.length){
+        const list = data.conflicts.map(c => {
+          const span = (c.start && c.end) ? `（${c.start} ~ ${c.end}）` : '';
+          return `${c.item_code}：已属于拍卖会 ${c.auction_id || ''} ${c.auction_name || ''}${span}`;
+        });
+        msg += `\n\n以下物品因拍卖日期冲突未加入：\n` + list.join('\n');
+      }
+
+      alert(msg);
+
+      // 不重新查询，直接在当前列表中，把这些行的“拍卖会”列更新为回数
+      codes.forEach(code=>{
+        const tr = document.querySelector(`tr[data-code="${CSS.escape(code)}"]`);
+        if (!tr) return;
+        const td = tr.querySelector('td[data-col="auction"]');
+        if (!td) return;
+        const old = (td.textContent || '').trim();
+        if (!old){
+          td.textContent = label;
+        }else{
+          const parts = old.split(/[、,]/).map(s=>s.trim()).filter(Boolean);
+          if (!parts.includes(label)){
+            parts.push(label);
+          }
+          td.textContent = parts.join('、');
+        }
+      });
+    }catch(e){
+      console.error(e);
+      alert('请求失败，请稍后再试');
+    }
+  });
+}
+
+
 /* Ctrl+S */
 document.addEventListener('keydown', (e)=>{
   if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
@@ -1066,6 +1302,7 @@ document.addEventListener('keydown', (e)=>{
   }
 });
 </script>
+
 
 <script>try{ bindPreview&&bindPreview(); }catch(e){ console&&console.warn(e); }</script>
 
@@ -1495,6 +1732,54 @@ function renderSellerOptions(filter=''){
         }
       });
     })();
+</script>
+
+<script>
+// 批量操作小窗：拖动 + 可缩放
+document.addEventListener('DOMContentLoaded', () => {
+  const panel = document.getElementById('bulk-panel');
+  const drag  = document.getElementById('bulk-panel-drag');
+  if (!panel || !drag) return;
+
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let startLeft = 0, startTop = 0;
+  let pointerId = null;
+
+  drag.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    pointerId = e.pointerId;
+    try { drag.setPointerCapture(pointerId); } catch(_) {}
+
+    const rect = panel.getBoundingClientRect();
+    startLeft = rect.left;
+    startTop  = rect.top;
+    startX = e.clientX;
+    startY = e.clientY;
+  });
+
+  drag.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    panel.style.left = (startLeft + dx) + 'px';
+    panel.style.top  = (startTop  + dy) + 'px';
+    // 确保不被右侧限制
+    panel.style.right = 'auto';
+  });
+
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    if (pointerId !== null) {
+      try { drag.releasePointerCapture(pointerId); } catch(_) {}
+      pointerId = null;
+    }
+  }
+
+  drag.addEventListener('pointerup', endDrag);
+  drag.addEventListener('pointercancel', endDrag);
+});
 </script>
 
 

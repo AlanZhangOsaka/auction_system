@@ -619,23 +619,72 @@ td.acc-cell .multi .btn.sm{ padding:4px 8px; border-radius:6px; }
 
 
 /* 左侧批量操作面板（list.html） */
+/* 左侧批量操作小窗口（list.html） */
 .bulk-panel{
   position: fixed;
-  left: 12px;
-  top: 140px;           
-  width: 200px;
+  left: 20px;
+  top: 140px;
+  width: 220px;
+  min-width: 180px;
+  max-width: 360px;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.06);
-  padding: 10px;
-  z-index: 60;          
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 8px;
+  z-index: 60;
+  font-size: 12px;          /* 字体变小 */
+  resize: both;             /* 允许缩放 */
+  overflow: auto;           /* 缩放后滚动 */
 }
-.bulk-panel .bulk-title{ font-weight:600; margin-bottom:8px; }
-.bulk-panel .bulk-buttons{ display:flex; gap:6px; margin-bottom:10px; }
-.bulk-panel .bulk-field{ display:flex; gap:6px; align-items:center; margin:8px 0; }
-.bulk-panel .input{ flex:1; min-width:0; }
-@media (max-width: 960px){ .bulk-panel{ display:none; } } 
+
+/* 标题栏：作为拖动手柄，样式类似悬停大图 header */
+.bulk-panel .bulk-title{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 12px;
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: move;             /* 鼠标提示可拖动 */
+  user-select: none;
+}
+
+.bulk-panel .bulk-buttons{
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.bulk-panel .bulk-field{
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 6px 0;
+}
+
+.bulk-panel label{
+  white-space: nowrap;
+}
+
+.bulk-panel .input{
+  flex: 1;
+  min-width: 0;
+}
+
+.bulk-panel .btn.sm{
+  font-size: 12px;
+  padding: 0 8px;
+  height: 26px;
+}
+
+/* 手机端仍然隐藏（避免遮挡） */
+@media (max-width: 960px){
+  .bulk-panel{ display:none; }
+}
+
 
 
 

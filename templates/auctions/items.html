@@ -7,12 +7,78 @@
     <h1 class="page-title">拍卖会物品管理</h1>
     <p class="page-subtitle">
       拍卖会 ID：{{ auction_id }}。<br>
-      后续将在此页面实现：添加 / 移出拍品、批量选择专场、调整 LOT 等功能。
+      在下方每行输入一个内部编号，将这些物品加入本拍卖会。
     </p>
   </div>
 
-  <div class="card">
-    <p>目前为占位页面，先确认拍卖会 / 专场设计无误后，再一起设计物品选择与 LOT 分配的具体流程。</p>
+  <div class="card" style="max-width:900px;">
+    <label class="form-label" style="display:block;margin-bottom:6px;">内部编号列表：</label>
+    <textarea id="codes-input"
+              class="input"
+              style="width:100%;min-height:220px;"
+              placeholder="一行一个内部编号，例如：&#10;250101_AA_001&#10;250101_AA_002"></textarea>
+
+    <div class="submit-row" style="margin-top:12px; text-align:right;">
+      <button id="btn-add" class="btn-main">加入本拍卖会</button>
+      <a href="{{ url_for('auctions_detail', auction_id=auction_id) }}"
+         class="btn"
+         style="margin-left:8px;">返回拍卖会详情</a>
+    </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('btn-add');
+  const ta = document.getElementById('codes-input');
+  if (!btn || !ta) return;
+
+  btn.addEventListener('click', async function(){
+    const raw = ta.value || '';
+    const codes = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+
+    if (!codes.length){
+      alert('请输入至少一个内部编号');
+      return;
+    }
+
+    const aid = "{{ auction_id }}";
+
+    try{
+      const res = await fetch(`/api/auctions/${encodeURIComponent(aid)}/items`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ item_codes: codes })
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.ok === false){
+        alert(data.error || '加入拍卖会失败');
+        return;
+      }
+
+      let msg = `已成功加入 ${data.added || 0} 件物品到拍卖会 ${data.auction_id || aid}。`;
+
+      if (Array.isArray(data.skipped_status) && data.skipped_status.length){
+        msg += `\n\n以下物品不是“待上拍”状态，已跳过：\n` + data.skipped_status.join(', ');
+      }
+      if (Array.isArray(data.skipped_exists) && data.skipped_exists.length){
+        msg += `\n\n以下物品已在该拍卖会中，未重复添加：\n` + data.skipped_exists.join(', ');
+      }
+      if (Array.isArray(data.conflicts) && data.conflicts.length){
+        const list = data.conflicts.map(c => {
+          const span = (c.start && c.end) ? `（${c.start} ~ ${c.end}）` : '';
+          return `${c.item_code}：已属于拍卖会 ${c.auction_id || ''} ${c.auction_name || ''}${span}`;
+        });
+        msg += `\n\n以下物品因拍卖日期冲突未加入：\n` + list.join('\n');
+      }
+
+      alert(msg);
+    }catch(e){
+      console.error(e);
+      alert('请求失败，请稍后再试');
+    }
+  });
+});
+</script>
 {% endblock %}

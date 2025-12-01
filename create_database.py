@@ -533,6 +533,28 @@ def _migrate_add_sort_and_group():
         if not _column_exists("sections", "section_date"):
             conn.execute(text("ALTER TABLE sections ADD COLUMN section_date DATE"))
 
+def _migrate_add_auction_items_unique_index():
+    """
+    为 auction_items 增加 (auction_id, item_code) 的唯一索引，
+    防止同一拍卖会中同一物品被重复加入。
+    幂等：索引已存在时不会重复创建。
+    """
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        rows = conn.execute(text("PRAGMA index_list('auction_items')")).fetchall()
+        index_names = {r[1] for r in rows}  # r[1] = index name
+        if "ux_auction_items_auction_item" not in index_names:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX ux_auction_items_auction_item "
+                    "ON auction_items (auction_id, item_code)"
+                )
+            )
+            print("已创建唯一索引: ux_auction_items_auction_item")
+        else:
+            print("唯一索引 ux_auction_items_auction_item 已存在，跳过")
+
+
 
 
 
@@ -637,6 +659,7 @@ if __name__ == '__main__':
 
     create_database()
     _migrate_add_sort_and_group()
+    _migrate_add_auction_items_unique_index()  # 新增：防止同一拍卖会重复加入同一物品
     init_basic_data()
     show_tables()
 
