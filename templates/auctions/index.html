@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}拍卖会列表{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-title">拍卖会列表</h1>
+    <p class="page-subtitle">查看已创建的拍卖会，点击名称进入详情 / 专场 / 物品管理。</p>
+  </div>
+
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:80px;">回数</th>
+          <th>拍卖会名称</th>
+          <th style="width:260px;">拍卖日期</th>
+          <th style="width:100px;">专场数</th>
+          <th style="width:140px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in auctions %}
+        <tr>
+          <td>{{ a.auction_order }}</td>
+          <td>
+            <a href="{{ url_for('auctions_detail', auction_id=a.auction_id) }}">
+              {{ a.auction_name }}
+            </a>
+          </td>
+          <td>
+            {% if a.auction_start_date %}
+              {{ a.auction_start_date }}
+              {% if a.auction_end_date %}
+                ～ {{ a.auction_end_date }}
+              {% endif %}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>{{ a.auction_section_count or 0 }}</td>
+          <td>
+            <a class="btn small" href="{{ url_for('auctions_detail', auction_id=a.auction_id) }}">详情 / 专场</a>
+            <a class="btn small" href="{{ url_for('auctions_items_page', auction_id=a.auction_id) }}">物品</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="5" style="text-align:center;color:#888;">暂无拍卖会，请先在“创建拍卖会”页面新增。</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

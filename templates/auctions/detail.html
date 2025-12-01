@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+{% block title %}拍卖会详情{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-title">拍卖会详情：{{ auction.auction_name }}</h1>
+    <p class="page-subtitle">
+      查看 / 修改拍卖会基础信息，并管理专场。拍卖会 ID：{{ auction.auction_id }}。
+    </p>
+  </div>
+
+  <form method="post">
+    <input type="hidden" name="submit_type" id="submit_type" value="save">
+
+    <div class="card" style="max-width:900px;">
+      <h2 class="card-title">基础信息</h2>
+
+      <div class="form-row">
+        <label class="form-label">拍卖会名称：</label>
+        <input type="text" name="auction_name" value="{{ auction.auction_name }}" class="input">
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">拍卖回数：</label>
+        <input type="number" name="auction_order" value="{{ auction.auction_order }}" class="input" disabled>
+        <span class="inline-note">回数不可修改</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">违约金比例：</label>
+        <input type="number" name="penalty_percent"
+               value="{{ ((auction.buyer_penalty_ratio or 0)) * 100 | round(1) }}"
+               step="0.1" class="input small">
+        <span class="inline-note">单位：%，例如 30</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">消费税率：</label>
+        <input type="number" name="tax_percent"
+               value="{{ ((auction.auction_tax or 0) * 100) | round(1) }}"
+               step="0.1" class="input small">
+        <span class="inline-note">单位：%，例如 10</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">竞买人基础佣金：</label>
+        <input type="number" name="buyer_commission_percent"
+               value="{{ ((auction.buyer_commission or 0) * 100) | round(1) }}"
+               step="0.1" class="input small">
+        <span class="inline-note">单位：%，例如 16.5</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">出品人基础佣金：</label>
+        <input type="number" name="seller_commission_percent"
+               value="{{ ((config.seller_commission or 0) * 100) | round(1) if config and config.seller_commission is not none else '' }}"
+               step="0.1" class="input small">
+        <span class="inline-note">单位：%，默认 13.2，如留空则按默认规则</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">出品人违约金支付比例：</label>
+        <input type="number" name="seller_penalty_percent"
+               value="{{ ((config.seller_penalty_ratio or 0) * 100) | round(1) if config else 15 }}"
+               step="0.1" class="input small">
+        <span class="inline-note">单位：%，默认 15</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">图录费计算方式：</label>
+        <label class="radio-inline">
+          <input type="radio" name="catalog_method" value="A"
+                 {% if config and config.catalog_method == 'A' %}checked{% endif %}> A 单件
+        </label>
+        <label class="radio-inline">
+          <input type="radio" name="catalog_method" value="B"
+                 {% if not config or config.catalog_method != 'A' %}checked{% endif %}> B 做书
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">基础图录费：</label>
+        <input type="number" name="catalog_base_fee"
+               value="{{ config.catalog_base_fee if config and config.catalog_base_fee is not none else 0 }}"
+               step="1" class="input small">
+        <span class="inline-note">单位：日元，默认 0</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">拍卖开始日期：</label>
+        <input type="date" name="start_date"
+               value="{{ auction.auction_start_date }}">
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">拍卖结束日期：</label>
+        <input type="date" name="end_date"
+               value="{{ auction.auction_end_date }}">
+        <span class="inline-note">如留空视为与开始日期相同</span>
+      </div>
+    </div>
+
+        <div class="card" style="max-width:900px;margin-top:16px;">
+      <h2 class="card-title">专场列表</h2>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:70px;">顺序</th>
+            <th style="width:60px;">抓手</th>
+            <th>专场名称</th>
+            <th style="width:200px;">拍卖日期</th>
+            <th style="width:230px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="section-table-body">
+        {% for sec in sections %}
+        <tr class="section-row"
+            data-section-id="{{ sec.section_order }}"
+            draggable="true">
+            <!-- 顺序显示 -->
+            <td class="order-cell">
+              {{ sec.section_order }}
+            </td>
+
+            <!-- 抓手 -->
+            <td>
+              <span class="drag-handle" style="cursor:move;font-size:18px;">☰</span>
+            </td>
+
+            <!-- 可编辑名称 -->
+            <td>
+              <input type="text"
+                     name="sections[{{ sec.section_order }}][name]"
+                     value="{{ sec.section_name }}"
+                     class="input">
+            </td>
+
+            <!-- 可编辑日期（限制在拍卖会日期范围内） -->
+            <td>
+              <input type="date"
+                     class="input section-date-input"
+                     name="sections[{{ sec.section_order }}][date]"
+                     value="{{ sec.section_date or '' }}"
+                     {% if auction.auction_start_date %}min="{{ auction.auction_start_date }}"{% endif %}
+                     {% if auction.auction_end_date %}max="{{ auction.auction_end_date }}"{% endif %}>
+            </td>
+
+            <!-- 操作按钮 + 隐藏字段 -->
+            <td>
+              <button type="button"
+                      class="btn section-up"
+                      style="padding:2px 6px;font-size:12px;">上升</button>
+              <button type="button"
+                      class="btn section-down"
+                      style="padding:2px 6px;font-size:12px;margin-left:4px;">下降</button>
+              <button type="button"
+                      class="btn section-delete"
+                      style="padding:2px 6px;font-size:12px;margin-left:8px;background:#e74c3c;color:#fff;">
+                删除
+              </button>
+
+              <!-- 顺序、删除标记 -->
+              <input type="hidden"
+                     name="sections[{{ sec.section_order }}][order]"
+                     value="{{ sec.section_order }}"
+                     class="order-input">
+              <input type="hidden"
+                     name="sections[{{ sec.section_order }}][deleted]"
+                     value="0"
+                     class="delete-input">
+              <!-- id 列表，方便后端取出所有旧专场 -->
+              <input type="hidden"
+                     name="section_ids"
+                     value="{{ sec.section_order }}">
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" style="text-align:center;color:#888;">尚未创建专场</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      <h3 style="margin-top:12px;">新增专场</h3>
+      <div class="form-row">
+        <label class="form-label">专场名称：</label>
+        <input type="text" name="new_section_name" class="input">
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">专场拍卖日期：</label>
+        <input type="date" name="new_section_date"
+               min="{{ auction.auction_start_date }}"
+               max="{{ auction.auction_end_date }}">
+        <span class="inline-note">可留空，后续再补（如填写，必须在拍卖会日期范围内）</span>
+      </div>
+
+    </div>
+
+
+        <div class="submit-row" style="margin-top:18px;">
+      <button type="submit" class="btn-main" id="btn-save">保存修改</button>
+      <button type="submit" class="btn" id="btn-add" style="margin-left:8px;">新增专场</button>
+      <a href="{{ url_for('auctions_index') }}" class="btn" style="margin-left:8px;">返回列表</a>
+    </div>
+  </form>
+</div>
+<script>
+
+document.addEventListener('DOMContentLoaded', function () {
+  // 记住 / 恢复当前页面的滚动位置（保存修改、 新增专场后不回到页面顶端）
+  const scrollKey = 'auction_detail_scroll_{{ auction.auction_id }}';
+
+  try {
+    const savedScroll = sessionStorage.getItem(scrollKey);
+    if (savedScroll !== null) {
+      sessionStorage.removeItem(scrollKey);  // 用一次就清掉，避免以后误用
+      const y = parseInt(savedScroll, 10);
+      if (!Number.isNaN(y)) {
+        window.scrollTo(0, y);
+      }
+    }
+  } catch (e) {
+    // 如果浏览器不支持 sessionStorage，直接忽略
+  }
+
+  const tbody = document.getElementById('section-table-body');
+  if (!tbody) return;
+
+
+  function isDeleted(row) {
+    const del = row.querySelector('.delete-input');
+    return del && del.value === '1';
+  }
+
+  function getRows() {
+    return Array.from(tbody.querySelectorAll('tr.section-row'))
+      .filter(row => !isDeleted(row));
+  }
+
+  function priority(dir) {
+    // later: 日期变晚 → 在该日期组最前
+    // earlier: 日期变早 → 在该日期组最后
+    if (dir === 'later') return 0;
+    if (dir === 'earlier') return 2;
+    return 1;
+  }
+
+  function dateValue(row) {
+    const input = row.querySelector('.section-date-input');
+    const v = input && input.value ? input.value : '9999-12-31';
+    return v;
+  }
+
+  function refreshOrderNumbers() {
+    const rows = getRows();
+    rows.forEach((row, idx) => {
+      const order = idx + 1;
+      const orderCell = row.querySelector('.order-cell');
+      const orderInput = row.querySelector('.order-input');
+      if (orderCell) orderCell.textContent = order;
+      if (orderInput) orderInput.value = order;
+    });
+
+    // 顶部不能上升，底部不能下降
+    rows.forEach((row, idx) => {
+      const upBtn = row.querySelector('.section-up');
+      const downBtn = row.querySelector('.section-down');
+      if (upBtn) upBtn.disabled = (idx === 0);
+      if (downBtn) downBtn.disabled = (idx === rows.length - 1);
+    });
+  }
+
+  function resortByDate() {
+    const rows = getRows();
+    rows.sort((a, b) => {
+      const da = dateValue(a);
+      const db = dateValue(b);
+      if (da !== db) {
+        return da < db ? -1 : 1;
+      }
+      const pa = priority(a.dataset.dateDirection || '');
+      const pb = priority(b.dataset.dateDirection || '');
+      if (pa !== pb) {
+        return pa - pb;
+      }
+      const oa = parseInt(a.querySelector('.order-input')?.value || '0', 10);
+      const ob = parseInt(b.querySelector('.order-input')?.value || '0', 10);
+      return oa - ob;
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
+    refreshOrderNumbers();
+  }
+
+  // 初始化 originalDate
+  getRows().forEach(row => {
+    const input = row.querySelector('.section-date-input');
+    row.dataset.originalDate = input ? (input.value || '') : '';
+  });
+
+  // 日期改变：自动移动到该日期的开头 / 结尾
+  tbody.addEventListener('change', function (e) {
+    if (!e.target.classList.contains('section-date-input')) return;
+    const row = e.target.closest('tr.section-row');
+    if (!row) return;
+
+    const oldDate = row.dataset.originalDate || '';
+    const newDate = e.target.value || '';
+
+    if (!oldDate || !newDate || oldDate === newDate) {
+      row.dataset.dateDirection = '';
+    } else if (newDate > oldDate) {
+      // 例：12/4 → 12/5：到 12/5 的最前面
+      row.dataset.dateDirection = 'later';
+    } else {
+      // 例：12/5 → 12/4：到 12/4 的最后面
+      row.dataset.dateDirection = 'earlier';
+    }
+
+    row.dataset.originalDate = newDate;
+    resortByDate();
+  });
+
+  // 上升 / 下降 / 删除
+  tbody.addEventListener('click', function (e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    const row = btn.closest('tr.section-row');
+    if (!row) return;
+
+    if (btn.classList.contains('section-up')) {
+  const prev = row.previousElementSibling;
+  const curDate = dateValue(row);
+  const prevDate = prev ? dateValue(prev) : null;
+
+  if (
+    prev &&
+    prev.classList.contains('section-row') &&
+    prev.style.display !== 'none' &&
+    curDate === prevDate           // 只允许与同日期行互换
+  ) {
+    tbody.insertBefore(row, prev);
+    row.dataset.dateDirection = '';
+    refreshOrderNumbers();
+  }
+} else if (btn.classList.contains('section-down')) {
+  const next = row.nextElementSibling;
+  const curDate = dateValue(row);
+  const nextDate = next ? dateValue(next) : null;
+
+  if (
+    next &&
+    next.classList.contains('section-row') &&
+    next.style.display !== 'none' &&
+    curDate === nextDate           // 只允许与同日期行互换
+  ) {
+    tbody.insertBefore(next, row);
+    row.dataset.dateDirection = '';
+    refreshOrderNumbers();
+  }
+}
+ else if (btn.classList.contains('section-delete')) {
+      if (confirm('确定要删除这个专场吗？')) {
+        const delInput = row.querySelector('.delete-input');
+        if (delInput) delInput.value = '1';
+        row.style.display = 'none';
+        refreshOrderNumbers();
+      }
+    }
+  });
+
+  // 拖动排序（抓手）
+  let draggingRow = null;
+
+  tbody.addEventListener('dragstart', function (e) {
+    const row = e.target.closest('tr.section-row');
+    if (!row) return;
+    draggingRow = row;
+    row.classList.add('dragging');
+  });
+
+  tbody.addEventListener('dragend', function () {
+    if (draggingRow) {
+      draggingRow.classList.remove('dragging');
+      draggingRow.dataset.dateDirection = '';
+      draggingRow = null;
+      refreshOrderNumbers();
+    }
+  });
+
+  tbody.addEventListener('dragover', function (e) {
+  e.preventDefault();
+  if (!draggingRow) return;
+
+  const afterElement = getDragAfterElement(tbody, e.clientY);
+  if (afterElement == null) {
+    // 没有“之后的元素”，说明拖到该日期组的最后
+    const sameDateRows = getRows().filter(r => dateValue(r) === dateValue(draggingRow));
+    const lastSame = sameDateRows[sameDateRows.length - 1];
+    if (lastSame) {
+      tbody.insertBefore(draggingRow, lastSame.nextSibling);
+    } else {
+      tbody.appendChild(draggingRow);
+    }
+  } else {
+    tbody.insertBefore(draggingRow, afterElement);
+  }
+});
+
+
+  function getDragAfterElement(container, y) {
+  const currentDate = draggingRow ? dateValue(draggingRow) : null;
+
+  const rows = [...container.querySelectorAll('tr.section-row:not(.dragging)')]
+    .filter(row => row.style.display !== 'none')
+    // 只看同日期的行，避免拖到其他日期组
+    .filter(row => !currentDate || dateValue(row) === currentDate);
+
+  let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+
+  rows.forEach(row => {
+    const box = row.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      closest = { offset: offset, element: row };
+    }
+  });
+
+  return closest.element;
+}
+
+
+  // 初次刷新：设置顺序和按钮状态
+  refreshOrderNumbers();
+
+  // 拆分“保存修改 / 新增专场”按钮的提交逻辑
+  const form = document.querySelector('form');
+  const saveBtn = document.getElementById('btn-save');
+  const addBtn = document.getElementById('btn-add');
+  const submitTypeInput = document.getElementById('submit_type');
+  const newNameInput = document.querySelector('input[name="new_section_name"]');
+  const newDateInput = document.querySelector('input[name="new_section_date"]');
+
+  if (form && submitTypeInput) {
+
+
+    // 任意提交（保存修改 / 新增专场）时，记录当前滚动位置
+    try {
+      form.addEventListener('submit', function () {
+        const y = window.scrollY || window.pageYOffset || 0;
+        sessionStorage.setItem(scrollKey, String(y));
+      });
+    } catch (e) {
+      // sessionStorage 异常时忽略
+    }
+
+  // 仅保存修改：清空新增专场输入，避免误新增
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function () {
+      submitTypeInput.value = 'save';
+      if (newNameInput) newNameInput.value = '';
+      if (newDateInput) newDateInput.value = '';
+    });
+  }
+
+  // 新增专场：必须输入名称，且记录当前滚动位置
+  if (addBtn) {
+    addBtn.addEventListener('click', function (e) {
+      if (newNameInput && !newNameInput.value.trim()) {
+        alert('请输入专场名称');
+        e.preventDefault();   // 阻止提交
+        return;
+      }
+      submitTypeInput.value = 'add';
+
+      // 记录当前滚动位置（用于提交后恢复位置）
+      try {
+        const y = window.scrollY || window.pageYOffset || 0;
+        sessionStorage.setItem('auction_detail_scroll', String(y));
+      } catch (err) {
+        // 忽略 sessionStorage 错误
+      }
+    });
+  }
+}
+  // 如果是“新增专场”提交后返回本页，恢复之前的滚动位置
+  try {
+    const savedScroll = sessionStorage.getItem('auction_detail_scroll');
+    if (savedScroll !== null) {
+      const y = parseInt(savedScroll, 10);
+      if (!isNaN(y)) {
+        window.scrollTo(0, y);
+      }
+      sessionStorage.removeItem('auction_detail_scroll');
+    }
+  } catch (err) {
+    // 忽略 sessionStorage 错误
+  }
+
+});
+</script>
+
+
+
+{% endblock %}

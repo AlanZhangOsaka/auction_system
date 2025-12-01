@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}创建拍卖会{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-title">创建拍卖会</h1>
+    <p class="page-subtitle">设置拍卖会名称、回数、佣金比例、图录费等基础信息。</p>
+  </div>
+
+  <div class="card">
+    <style>
+      .form-box {
+          max-width: 720px;
+          background: #fff;
+          border: 1px solid #ddd;
+          padding: 20px 24px 24px;
+          border-radius: 6px;
+      }
+      .form-title {
+          font-size: 18px;
+          font-weight: bold;
+          margin-bottom: 16px;
+      }
+      .form-row {
+          display: flex;
+          align-items: center;
+          margin-bottom: 10px;
+      }
+      .form-row label {
+          width: 140px;
+          text-align: right;
+          margin-right: 10px;
+      }
+      .form-row input[type="text"],
+      .form-row input[type="number"],
+      .form-row input[type="date"],
+      .form-row select {
+          flex: 1;
+          padding: 4px 6px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+      }
+      .inline-note {
+          margin-left: 8px;
+          font-size: 12px;
+          color: #666;
+      }
+      .percent-input {
+          width: 120px;
+      }
+      .number-input {
+          width: 160px;
+      }
+      .btn-group {
+          margin-left: 8px;
+      }
+      .btn-mini {
+          display: inline-block;
+          padding: 2px 8px;
+          font-size: 12px;
+          border-radius: 4px;
+          border: 1px solid #999;
+          background: #fafafa;
+          cursor: pointer;
+          margin-right: 4px;
+      }
+      .btn-mini:hover {
+          background: #eee;
+      }
+      .catalog-radio {
+          margin-right: 12px;
+      }
+      .submit-row {
+          margin-top: 18px;
+          text-align: center;
+      }
+      .btn-main {
+          padding: 6px 18px;
+          border-radius: 4px;
+          border: none;
+          background: #007bff;
+          color: #fff;
+          cursor: pointer;
+      }
+      .btn-main:hover { background: #0064d6; }
+      #msg {
+          margin-top: 10px;
+          text-align: center;
+          font-size: 13px;
+      }
+    </style>
+
+    <div class="form-box">
+      <div class="form-title">创建拍卖会</div>
+
+      <div class="form-row">
+          <label>拍卖会名称：</label>
+          <input type="text" id="auction_name" placeholder="例如：2025年春季拍卖会">
+      </div>
+
+      <div class="form-row">
+          <label>拍卖回数：</label>
+          <input type="number" id="auction_order" class="number-input" min="1" step="1" placeholder="必须为整数，且不可重复">
+          <span class="inline-note">例：1、2、3……</span>
+      </div>
+
+      <div class="form-row">
+          <label>违约金比例：</label>
+          <input type="number" id="penalty_ratio" class="percent-input" value="30" step="0.1">
+          <span class="inline-note">单位：%，默认 30%</span>
+      </div>
+
+      <div class="form-row">
+          <label>消费税率：</label>
+          <input type="number" id="tax" class="percent-input" value="10" step="0.1">
+          <span class="inline-note">单位：%，默认 10%</span>
+      </div>
+
+      <div class="form-row">
+          <label>竞买人基础佣金：</label>
+          <input type="number" id="buyer_commission" class="percent-input" value="16.5" step="0.1">
+          <span class="inline-note">单位：%，默认 13.2%</span>
+      </div>
+
+      <div class="form-row">
+          <label></label>
+          <div class="btn-group">
+              <span class="btn-mini" onclick="setBuyerCommission(16.5)">16.5%</span>
+              <span class="btn-mini" onclick="setBuyerCommission(19.8)">19.8%</span>
+              <span class="inline-note">可点选快速填入，也可手动修改</span>
+          </div>
+      </div>
+
+      <div class="form-row">
+          <label>出品人基础佣金：</label>
+          <input type="number" id="seller_commission" class="percent-input" value="13.2" step="0.1">
+          <span class="inline-note">单位：%，默认 13.2%，如清空则按默认规则</span>
+      </div>
+
+      <div class="form-row">
+          <label>出品人违约金支付比例：</label>
+          <input type="number" id="seller_penalty_ratio" class="percent-input" value="15" step="0.1">
+          <span class="inline-note">单位：%，默认 15%</span>
+      </div>
+
+      <div class="form-row">
+          <label>图录费计算方法：</label>
+          <label class="catalog-radio">
+              <input type="radio" name="catalog_method" value="A"> A 单件
+          </label>
+          <label class="catalog-radio">
+              <input type="radio" name="catalog_method" value="B" checked> B 做书
+          </label>
+      </div>
+
+      <div class="form-row">
+          <label>基础图录费：</label>
+          <input type="number" id="catalog_base_fee" class="number-input" value="0" step="100">
+          <span class="inline-note">单位：日元，默认 0</span>
+      </div>
+
+      <div class="form-row">
+          <label>拍卖日期：</label>
+          <input type="date" id="start_date" class="number-input">
+          <span style="margin: 0 6px;">～</span>
+          <input type="date" id="end_date" class="number-input">
+          <span class="inline-note">可只填开始日期，结束日期留空则自动视为同一天</span>
+      </div>
+
+      <div class="submit-row">
+          <button class="btn-main" onclick="submitForm()">创建拍卖会</button>
+      </div>
+      <div id="msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function setBuyerCommission(val) {
+    document.getElementById("buyer_commission").value = val;
+}
+
+async function submitForm() {
+    const name = document.getElementById("auction_name").value.trim();
+    const order = document.getElementById("auction_order").value;
+    const penalty_ratio = document.getElementById("penalty_ratio").value;
+    const tax = document.getElementById("tax").value;
+    const buyer_commission = document.getElementById("buyer_commission").value;
+    const seller_commission = document.getElementById("seller_commission").value;
+    const seller_penalty_ratio = document.getElementById("seller_penalty_ratio").value;
+    const catalog_method = (document.querySelector("input[name='catalog_method']:checked") || {}).value || "B";
+    const catalog_base_fee = document.getElementById("catalog_base_fee").value;
+    const start_date = document.getElementById("start_date").value;
+    const end_date = document.getElementById("end_date").value;
+
+    const msg = document.getElementById("msg");
+    msg.style.color = "red";
+
+    if (!name) {
+        msg.innerText = "拍卖会名称不能为空";
+        return;
+    }
+    if (!order) {
+        msg.innerText = "拍卖回数不能为空";
+        return;
+    }
+    if (!start_date) {
+        msg.innerText = "拍卖开始日期不能为空";
+        return;
+    }
+
+    const payload = {
+        auction_name: name,
+        auction_order: order,
+        penalty_ratio: penalty_ratio,
+        tax: tax,
+        buyer_commission: buyer_commission,
+        seller_commission: seller_commission === "" ? null : seller_commission,
+        seller_penalty_ratio: seller_penalty_ratio,
+        catalog_method: catalog_method,
+        catalog_base_fee: catalog_base_fee,
+        start_date: start_date,
+        end_date: end_date
+    };
+
+    try {
+        const r = await fetch("/api/auctions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const j = await r.json();
+        if (j.ok) {
+            msg.style.color = "green";
+            msg.innerText = "拍卖会创建成功！ID = " + j.auction_id;
+        } else {
+            msg.style.color = "red";
+            msg.innerText = j.error || "创建失败";
+        }
+    } catch (e) {
+        msg.style.color = "red";
+        msg.innerText = "请求失败：" + e;
+    }
+}
+</script>
+{% endblock %}

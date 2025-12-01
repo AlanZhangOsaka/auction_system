@@ -167,7 +167,18 @@ class Auction(Base):
     sections = relationship("Section", back_populates="auction")
     auction_items = relationship("AuctionItem", back_populates="auction")
     buyer_auctions = relationship("BuyerAuction", back_populates="auction")
+    config = relationship("AuctionConfig", back_populates="auction", uselist=False)
 
+class AuctionConfig(Base):
+    __tablename__ = 'auction_configs'
+
+    auction_id = Column(String(50), ForeignKey('auctions.auction_id'), primary_key=True, comment='拍卖会id')
+    seller_commission = Column(DECIMAL(5, 4), comment='出品人基础佣金')
+    seller_penalty_ratio = Column(DECIMAL(5, 4), comment='出品人违约金支付比例')
+    catalog_method = Column(String(10), comment='图录费计算方法（A=单件 / B=做书）')
+    catalog_base_fee = Column(DECIMAL(12, 2), comment='基础图录费')
+
+    auction = relationship("Auction", back_populates="config")
 
 class Section(Base):
     __tablename__ = 'sections'
@@ -175,6 +186,7 @@ class Section(Base):
     auction_id = Column(String(50), ForeignKey('auctions.auction_id'), primary_key=True, comment='拍卖会id')
     section_order = Column(Integer, primary_key=True, comment='专场顺序id')
     section_name = Column(String(200), comment='专场名称')
+    section_date = Column(Date, comment='专场拍卖日期')
     section_lot_start = Column(Integer, comment='专场开始LOT')
     section_lot_end = Column(Integer, comment='专场结束LOT')
 
@@ -517,6 +529,10 @@ def _migrate_add_sort_and_group():
             rows = conn.execute(text("SELECT item_category FROM item_categories ORDER BY item_category ASC")).fetchall()
             for i, (name,) in enumerate(rows, start=1):
                 conn.execute(text("UPDATE item_categories SET sort=:s WHERE item_category=:n"), {"s": i, "n": name})
+        # 6) sections.section_date
+        if not _column_exists("sections", "section_date"):
+            conn.execute(text("ALTER TABLE sections ADD COLUMN section_date DATE"))
+
 
 
 

@@ -12,7 +12,9 @@ from flask import Flask, render_template, jsonify, request, abort
 from config import DEBUG, HOST, PORT
 
 # 复用你已定义的 SQLAlchemy 模型与会话（在 create_database.py 中）
-from create_database import get_session, Item, Seller, Auction, Buyer, OperationLog, MaterialOption, OutboundLog
+from create_database import (get_session, Item, Seller, Auction, AuctionItem, AuctionConfig,
+                             Buyer, OperationLog, MaterialOption, OutboundLog, Section)
+
 
 from decimal import Decimal, InvalidOperation
 import os
@@ -401,10 +403,11 @@ def create_app():
     def inventory_outbound():
         return render_template("inventory/outbound.html")
 
-    # [HTML] 拍卖会管理 - 制作：templates/auctions/build.html
-    @app.route("/auctions/build")
-    def auctions_build():
-        return render_template("auctions/build.html")
+    # [HTML] 拍卖会管理 - 创建拍卖会：templates/auctions/create.html
+    @app.route("/auctions/create")
+    def auctions_create():
+        return render_template("auctions/create.html")
+
 
     # [HTML] 拍卖会管理 - 日常图片管理：templates/auctions/images.html
     @app.route("/auctions/images")
@@ -420,6 +423,201 @@ def create_app():
     @app.route("/auctions/returns")
     def auctions_returns():
         return render_template("auctions/returns.html")
+
+    # [HTML] 拍卖会列表
+    @app.route("/auctions", methods=["GET"])
+    def auctions_index():
+        session = get_session()
+        try:
+            auctions = session.query(Auction).order_by(Auction.auction_order).all()
+            return render_template("auctions/index.html", auctions=auctions)
+        finally:
+            session.close()
+
+    # [HTML] 单个拍卖会详情 + 专场列表
+    @app.route("/auctions/<auction_id>", methods=["GET", "POST"])
+    def auctions_detail(auction_id):
+        session = get_session()
+        try:
+            auction = session.get(Auction, auction_id)
+            if not auction:
+                return "拍卖会不存在", 404
+
+            config = auction.config
+
+            if request.method == "POST":
+                form = request.form
+                submit_type = form.get("submit_type") or "save"
+
+                # ---------- 基础信息 ----------
+                name = (form.get("auction_name") or "").strip()
+                penalty_percent = form.get("penalty_percent") or "0"
+                tax_percent = form.get("tax_percent") or "0"
+                buyer_comm_percent = form.get("buyer_commission_percent") or "0"
+                seller_comm_percent = form.get("seller_commission_percent") or ""
+                seller_penalty_percent = form.get("seller_penalty_percent") or "0"
+                catalog_method = form.get("catalog_method") or "B"
+                base_catalog_fee = form.get("catalog_base_fee") or "0"
+                start_date_str = form.get("start_date") or ""
+                end_date_str = form.get("end_date") or ""
+
+                def parse_date(s: str):
+                    if not s:
+                        return None
+                    try:
+                        return datetime.strptime(s, "%Y-%m-%d").date()
+                    except ValueError:
+                        return None
+
+                start_date = parse_date(start_date_str)
+                end_date = parse_date(end_date_str)
+
+                # 百分比转小数
+                try:
+                    penalty_ratio = Decimal(str(penalty_percent)) / Decimal("100")
+                    tax_ratio = Decimal(str(tax_percent)) / Decimal("100")
+                    buyer_comm_ratio = Decimal(str(buyer_comm_percent)) / Decimal("100")
+                except (InvalidOperation, ValueError):
+                    return "比例格式错误", 400
+
+                seller_comm_ratio = None
+                if seller_comm_percent != "":
+                    try:
+                        seller_comm_ratio = Decimal(str(seller_comm_percent)) / Decimal("100")
+                    except (InvalidOperation, ValueError):
+                        return "出品人基础佣金格式错误", 400
+
+                try:
+                    base_fee = Decimal(str(base_catalog_fee or 0))
+                except (InvalidOperation, ValueError):
+                    return "基础图录费格式错误", 400
+
+                # 写回 Auction
+                auction.auction_name = name
+                auction.auction_start_date = start_date
+                auction.auction_end_date = end_date
+                auction.buyer_penalty_ratio = penalty_ratio
+                auction.auction_tax = tax_ratio
+                auction.buyer_commission = buyer_comm_ratio
+
+                # 写回 AuctionConfig
+                if config is None:
+                    config = AuctionConfig(auction_id=auction.auction_id)
+                    session.add(config)
+
+                config.seller_commission = seller_comm_ratio
+                config.seller_penalty_ratio = (Decimal(str(seller_penalty_percent)) / Decimal("100"))
+                config.catalog_method = catalog_method
+                config.catalog_base_fee = base_fee
+
+                # ---------- 专场编辑 / 删除 / 排序 ----------
+                # 前端字段：sections[原section_order][name/date/order/deleted]
+                import re
+                sec_pattern = re.compile(r"^sections\[(\d+)\]\[(\w+)\]$")
+
+                sections_form: dict[int, dict[str, str]] = {}
+                for key in form.keys():
+                    m = sec_pattern.match(key)
+                    if not m:
+                        continue
+                    orig_order = int(m.group(1))  # 原来的 section_order
+                    field = m.group(2)
+                    sections_form.setdefault(orig_order, {})[field] = form.get(key)
+
+                keep_list = []  # (前端order, 原order, Section对象)
+
+                # 当前所有专场，用原来的 section_order 定位
+                existing_secs = session.query(Section).filter(
+                    Section.auction_id == auction_id
+                ).all()
+                sec_by_order = {s.section_order: s for s in existing_secs}
+
+                for orig_order, data in sections_form.items():
+                    sec = sec_by_order.get(orig_order)
+                    if not sec:
+                        continue
+
+                    deleted_flag = (data.get("deleted") or "").strip()
+                    if deleted_flag == "1":
+                        # 删除
+                        session.delete(sec)
+                        continue
+
+                    # 更新名称
+                    sec.section_name = (data.get("name") or "").strip() or None
+                    # 更新日期
+                    sec.section_date = parse_date(data.get("date") or "")
+
+                    # 前端计算好的排序值（抓手 / 上升 / 下降 / 日期调整后）
+                    try:
+                        order_val = int(data.get("order") or orig_order)
+                    except ValueError:
+                        order_val = orig_order
+
+                    keep_list.append((order_val, orig_order, sec))
+
+                # ---------- 新增专场（仅当点击“新增专场”按钮） ----------
+                if submit_type == "add":
+                    new_section_name = (form.get("new_section_name") or "").strip()
+                    new_section_date_str = form.get("new_section_date") or ""
+                    new_section_date = parse_date(new_section_date_str)
+
+                    if new_section_name:
+                        new_sec = Section(
+                            auction_id=auction_id,
+                            section_order=0,  # 临时值，下面统一重新编号
+                            section_name=new_section_name,
+                            section_date=new_section_date
+                        )
+                        session.add(new_sec)
+                        # 让它一定排到最后
+                        keep_list.append((10 ** 9, 10 ** 9, new_sec))
+
+                # ---------- 统一重新编号 section_order ----------
+                # 先按前端 order 升序，再按原 order 稳定排序
+                keep_list.sort(key=lambda t: (t[0], t[1]))
+
+                # 第一步：给所有保留的专场一个“临时大编号”，避免 UNIQUE(auction_id, section_order) 冲突
+                temp_base = 1000
+                for idx, (_, __, sec) in enumerate(keep_list, start=1):
+                    sec.section_order = temp_base + idx
+
+                session.flush()  # 把临时值写进数据库，此时不会与旧值冲突
+
+                # 第二步：再从 1 开始连续编号
+                for idx, (_, __, sec) in enumerate(keep_list, start=1):
+                    sec.section_order = idx
+
+                # 更新拍卖会的专场数量（只统计未删除的）
+                auction.auction_section_count = len(keep_list)
+
+                session.commit()
+
+            # GET 或 POST 提交后重新查询专场列表
+            sections = session.query(Section) \
+                              .filter(Section.auction_id == auction_id) \
+                              .order_by(Section.section_order) \
+                              .all()
+
+            return render_template(
+                "auctions/detail.html",
+                auction=auction,
+                config=config,
+                sections=sections
+            )
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+
+
+    # [HTML] 拍卖会物品管理（占位页，后续实现添加/删除物品、选择专场）
+    @app.route("/auctions/<auction_id>/items", methods=["GET"])
+    def auctions_items_page(auction_id):
+        return render_template("auctions/items.html", auction_id=auction_id)
+
 
     # [HTML] 出品人 - 列表页：templates/sellers/index.html
     @app.route("/sellers")
@@ -480,7 +678,7 @@ def create_app():
         return render_template("settings/accessory_types.html", title="附属品设置")
 
     # ==================== 拖拽排序 API（新增，不影响原有 CRUD） ====================
-    from sqlalchemy import text
+    from sqlalchemy import text, func
 
     # [HTML] 设置 - 材质选项管理页
     @app.route("/settings/material-options", methods=["GET"])
@@ -1277,6 +1475,193 @@ def create_app():
             rows = sort_items_by_code(rows)  # ← 新增统一排序
             return jsonify({"total": len(rows), "items": rows})
 
+        except Exception as e:
+            session.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            session.close()
+
+    # [API] 创建拍卖会
+    @app.route("/api/auctions", methods=["POST"])
+    def api_create_auction():
+        """
+        创建拍卖会（基础配置）：
+        请求 JSON 示例：
+        {
+            "auction_name": "2025年春季拍卖会",
+            "auction_order": 1,
+            "penalty_ratio": 30,          # 违约金比例（百分数）
+            "tax": 10,                    # 消费税率（百分数）
+            "buyer_commission": 13.2,     # 竞买人基础佣金（百分数）
+            "seller_commission": 11.0,    # 出品人基础佣金（百分数，可选）
+            "seller_penalty_ratio": 15,   # 出品人违约金支付比例（百分数）
+            "catalog_method": "B",        # 图录费计算方法："A"=单件 / "B"=做书
+            "catalog_base_fee": 0,        # 基础图录费（金额）
+            "start_date": "2025-12-01",   # 拍卖开始日期
+            "end_date": "2025-12-02"      # 拍卖结束日期（可与开始相同）
+        }
+        """
+        payload = request.get_json(silent=True) or {}
+
+        name = (payload.get("auction_name") or "").strip()
+        order = payload.get("auction_order")
+        penalty_percent = payload.get("penalty_ratio", 30)
+        tax_percent = payload.get("tax", 10)
+        buyer_comm_percent = payload.get("buyer_commission", 13.2)
+        seller_comm_percent = payload.get("seller_commission")
+        seller_penalty_percent = payload.get("seller_penalty_ratio", 15)
+        catalog_method = (payload.get("catalog_method") or "B").upper()
+        base_catalog_fee = payload.get("catalog_base_fee", 0)
+        start_date_str = (payload.get("start_date") or "").strip()
+        end_date_str = (payload.get("end_date") or "").strip()
+
+        if not name:
+            return jsonify({"error": "拍卖会名称不能为空"}), 400
+
+        try:
+            order = int(order)
+        except (TypeError, ValueError):
+            return jsonify({"error": "拍卖回数必须为整数"}), 400
+
+        if not start_date_str:
+            return jsonify({"error": "拍卖开始日期不能为空"}), 400
+
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            if end_date_str:
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+            else:
+                end_date = start_date
+        except ValueError:
+            return jsonify({"error": "拍卖日期格式必须为 YYYY-MM-DD"}), 400
+
+        # 百分数 → 小数（例如 30 → 0.30）
+        def to_ratio(v, default):
+            try:
+                return Decimal(str(v if v is not None else default)) / Decimal("100")
+            except (InvalidOperation, ValueError):
+                return Decimal(str(default)) / Decimal("100")
+
+        penalty_ratio = to_ratio(penalty_percent, 30)
+        tax_ratio = to_ratio(tax_percent, 10)
+        buyer_comm_ratio = to_ratio(buyer_comm_percent, 13.2)
+        seller_penalty_ratio = to_ratio(seller_penalty_percent, 15)
+
+        seller_comm_ratio = None
+        if seller_comm_percent not in (None, ""):
+            try:
+                seller_comm_ratio = Decimal(str(seller_comm_percent)) / Decimal("100")
+            except (InvalidOperation, ValueError):
+                return jsonify({"error": "出品人基础佣金格式不正确"}), 400
+
+        if catalog_method not in ("A", "B"):
+            catalog_method = "B"
+
+        try:
+            base_fee = Decimal(str(base_catalog_fee or 0))
+        except (InvalidOperation, ValueError):
+            return jsonify({"error": "基础图录费格式不正确"}), 400
+
+        session = get_session()
+        try:
+            # 拍卖回数不可重复
+            exists = session.query(Auction).filter(Auction.auction_order == order).first()
+            if exists:
+                return jsonify({"error": "拍卖回数已存在，请更换一个"}), 400
+
+            # 拍卖会ID：先简单用拍卖回数字符串，将来可以调整为“202511_15”这种格式
+            auction_id = str(order)
+
+            auction = Auction(
+                auction_id=auction_id,
+                auction_name=name,
+                auction_order=order,
+                auction_start_date=start_date,
+                auction_end_date=end_date,
+                buyer_penalty_ratio=penalty_ratio,
+                auction_tax=tax_ratio,
+                buyer_commission=buyer_comm_ratio
+            )
+
+            config = AuctionConfig(
+                auction_id=auction_id,
+                seller_commission=seller_comm_ratio,
+                seller_penalty_ratio=seller_penalty_ratio,
+                catalog_method=catalog_method,
+                catalog_base_fee=base_fee
+            )
+
+            session.add(auction)
+            session.add(config)
+            session.commit()
+
+            return jsonify({
+                "ok": True,
+                "auction_id": auction_id
+            })
+        except Exception as e:
+            session.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            session.close()
+
+    # [API] 拍卖会加入拍品（把“待上拍”改为“上拍中”）
+    @app.route("/api/auctions/<auction_id>/items", methods=["POST"])
+    def api_auction_add_items(auction_id):
+        """
+        将若干“待上拍”物品加入指定拍卖会，并将状态改为“上拍中”。
+
+        请求 JSON 示例：
+        {
+            "item_codes": ["240101_A_001", "240101_A_002", ...]
+        }
+
+        规则：
+        - 仅允许从“待上拍”状态加入拍卖会；
+        - 加入时自动分配 LOT 号（当前拍卖会最大 LOT + 1）；
+        - 成功后：items.item_status = "上拍中"。
+        """
+        payload = request.get_json(silent=True) or {}
+        item_codes = payload.get("item_codes") or []
+        if not item_codes:
+            return jsonify({"error": "缺少 item_codes"}), 400
+
+        session = get_session()
+        try:
+            auction = session.get(Auction, auction_id)
+            if not auction:
+                return jsonify({"error": f'拍卖会 {auction_id} 不存在'}), 404
+
+            # 当前拍卖会的最大 LOT 号
+            max_lot = session.query(func.max(AuctionItem.lot_number))\
+                             .filter(AuctionItem.auction_id == auction_id)\
+                             .scalar() or 0
+
+            added = 0
+            for code in item_codes:
+                it = session.get(Item, code)
+                if not it:
+                    continue
+
+                status = it.item_status or ''
+                if '待上拍' not in status:
+                    # 暂时只允许“待上拍”的物品加入拍卖会
+                    continue
+
+                max_lot += 1
+                ai = AuctionItem(
+                    auction_id=auction_id,
+                    lot_number=max_lot,
+                    item_code=code
+                )
+                session.add(ai)
+
+                # 状态改为“上拍中”
+                it.item_status = '上拍中'
+                added += 1
+
+            session.commit()
+            return jsonify({"ok": True, "added": added, "auction_id": auction_id})
         except Exception as e:
             session.rollback()
             return jsonify({"error": str(e)}), 500
