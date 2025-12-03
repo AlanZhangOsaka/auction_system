@@ -2221,7 +2221,7 @@ def create_app():
             query = session.query(Item)
             if seller_code:
                 query = query.filter(Item.seller_code == seller_code)
-            # 多个出品人（多选）：seller_codes=CODE1,CODE2,...
+
             # 多个出品人（多选）：seller_codes=CODE1,CODE2,...
             if seller_codes:
                 arr = [s.strip().upper() for s in (seller_codes or '').split(',') if s.strip()]
@@ -2387,7 +2387,7 @@ def create_app():
                 for code, name in pairs:
                     seller_name_map[code] = name or code
 
-            # ===== 批量查询附属品并映射到 {item_code: [name, ...]} =====
+            # ===== 批量查询附属品并映射到 {item_code: [name, .]} =====
             from create_database import ItemAccessory  # 已有模型
 
             codes = [r.item_code for r in rows if getattr(r, "item_code", None)]
@@ -2402,7 +2402,31 @@ def create_app():
                 for c, name in pairs:
                     acc_map.setdefault(c, []).append(name or "")
 
+            # ===== 批量查询拍卖会回数映射 {item_code: [auction_order, ...]} =====
+            auction_map = {}
+            if codes:
+                try:
+                    from create_database import AuctionItem, Auction
+                    pairs2 = (
+                        session.query(AuctionItem.item_code, Auction.auction_order)
+                        .join(Auction, AuctionItem.auction_id == Auction.auction_id)
+                        .filter(AuctionItem.item_code.in_(codes))
+                        .all()
+                    )
+                    for c, order in pairs2:
+                        if order is None:
+                            continue
+                        auction_map.setdefault(c, []).append(order)
+                except Exception:
+                    auction_map = {}
+
             def to_row(x):
+                # 把拍卖会 order 转成 “xx回、yy回” 这样的字符串
+                orders = auction_map.get(x.item_code, []) or []
+                # 去重 + 排序
+                orders = sorted({o for o in orders if o is not None})
+                auction_label = "、".join(f"{o}回" for o in orders)
+
                 return {
                     "item_code": x.item_code,
                     "item_name": x.item_name,
@@ -2423,6 +2447,7 @@ def create_app():
                     "item_inscription": x.item_inscription,
                     "item_description": x.item_description,
                     "accessories_text": "、".join(acc_map.get(x.item_code, [])),  # 来自 item_accessories
+                    "auction_label": auction_label,
                 }
 
             return jsonify({

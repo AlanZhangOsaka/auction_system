@@ -75,6 +75,12 @@
       <span>固定编号图片</span>
     </label>
 
+    <!-- 新增：控制批量操作窗口显示的勾选框 -->
+    <label class="btn toggle">
+      <input type="checkbox" id="bulk-toggle">
+      <span>批量操作窗口</span>
+    </label>
+
     <div class="spacer"></div>
 
     <button id="save-all" class="btn primary">保存全部（Ctrl+S）</button>
@@ -83,7 +89,7 @@
 
 
       <!-- 左侧常驻批量操作面板 -->
-<div id="bulk-panel" class="bulk-panel">
+<div id="bulk-panel" class="bulk-panel draggable resizable" style="display:none;">
   <div class="bulk-title" id="bulk-panel-drag">批量操作</div>
   <div class="bulk-buttons">
     <button type="button" class="btn sm" id="bulk-select-all">全选</button>
@@ -104,17 +110,17 @@
   <div class="bulk-field">
     <label>修改种类至</label>
     <select id="bulk-cat" class="input"></select>
-    <button type="button" class="btn sm" id="bulk-apply-cat">应用</button>
+    <button type="button" class="btn sm" id="bulk-apply-cat">确认修改种类</button>
   </div>
   <div class="bulk-field">
     <label>修改位置至</label>
     <input id="bulk-loc" class="input" placeholder="位置">
-    <button type="button" class="btn sm" id="bulk-apply-loc">应用</button>
+    <button type="button" class="btn sm" id="bulk-apply-loc">确认修改位置</button>
   </div>
   <div class="bulk-field">
     <label>修改箱号至</label>
-    <input id="bulk-box" class="input" placeholder="箱号">
-    <button type="button" class="btn sm" id="bulk-apply-box">应用</button>
+    <input id="bulk-box" class="input" placeholder="箱号" list="box-options">
+    <button type="button" class="btn sm" id="bulk-apply-box">确认修改箱号</button>
   </div>
 </div>
 
@@ -241,6 +247,9 @@
     </div>
   </div>
 </div>
+
+<!-- 全局箱号候选，下拉用 -->
+<datalist id="box-options"></datalist>
 
 </div>
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
@@ -720,9 +729,14 @@ document.addEventListener('click', (e)=>{
         <td class="td-img freeze-col freeze-2">${imgHtml}</td>
         <!-- 冻结列3：拍卖会（移位后） -->
         <td class="td-center" data-col="auction">${auction}</td>
-        <td>${locBox}</td>
+        <td>
+          ${inp(location, 'item_location', '位置')}
+          <br>
+          ${inp(box, 'item_box_code', '箱号').replace('<input ', '<input list="box-options" ')}
+        </td>
         <td>${selCat(cat)}</td>
         <td>${inp(name, 'item_name', '名称')}</td>
+
         <td>${seller}</td>
         <td>${inp(size, 'item_size', '尺寸')}</td>
         <td class="td-center">${inpNum(sp, 'starting_price', '起拍价')}</td>
@@ -818,6 +832,7 @@ await resetAndLoad(buildQuery());
 // —— 选项缓存（页面首次加载时拉一次）——
 window.SELLER_OPTIONS = [];  // [{code,name,display}]
 window.CAT_OPTIONS = [];     // ["书画","杂项",...]
+window.BOX_OPTIONS   = [];   // ["H01","H02",...]
 /* 由 AU.Dict 提供 */       // ["盒","签",...]
 
 async function preloadOptions(){
@@ -833,6 +848,24 @@ async function preloadOptions(){
     const rc = await fetch('/api/settings/item_categories'); const cats = await rc.json();
     window.CAT_OPTIONS = (cats && cats.items) ? cats.items : [];
 
+    // 箱号（从 /api/settings/boxes/list 读取）
+    const rb    = await fetch('/api/settings/boxes/list');
+    const boxes = await rb.json();
+    const items = (boxes && boxes.items) ? boxes.items : [];
+    window.BOX_OPTIONS = items
+      .map(b => (b && (b.name || b.box_code || '')) || '')
+      .filter(Boolean);
+
+    const boxList = document.getElementById('box-options');
+    if (boxList) {
+      boxList.innerHTML = '';
+      window.BOX_OPTIONS.forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        boxList.appendChild(opt);
+      });
+    }
+
     // 附属品类型
     const ra = await fetch('/api/settings/accessory_types'); const acc = await ra.json();
     /* 由 AU.Dict 提供 */
@@ -840,6 +873,7 @@ async function preloadOptions(){
     console.warn('选项预载失败', e);
   }
 }
+
 // 页面启动时预载
 preloadOptions();
 </script>
@@ -1456,6 +1490,31 @@ function toggleRowByCheckbox(cb){
   const btnNone = document.getElementById('bulk-select-none');
   const btnClear = document.getElementById('bulk-select-clear');
   const selAll = document.getElementById('select-all');
+    // === 批量操作窗口：用勾选框控制显示/隐藏 ===
+  const bulkToggle = document.getElementById('bulk-toggle');
+  const bulkPanel  = document.getElementById('bulk-panel');
+
+  if (bulkToggle && bulkPanel) {
+    // 页面初始：按照勾选状态显示/隐藏（默认没勾选就是隐藏）
+    const applyBulkToggle = () => {
+      if (bulkToggle.checked) {
+        // 每次重新打开时重置位置和尺寸
+        bulkPanel.style.display = 'block';
+        bulkPanel.style.left    = '';
+        bulkPanel.style.top     = '';
+        bulkPanel.style.width   = '';
+        bulkPanel.style.height  = '';
+      } else {
+        bulkPanel.style.display = 'none';
+      }
+    };
+
+    bulkToggle.addEventListener('change', applyBulkToggle);
+    // 初始执行一次
+    bulkToggle.checked = true;
+    applyBulkToggle();
+  }
+
 
 if (selAll) {
   selAll.addEventListener('change', () => {
