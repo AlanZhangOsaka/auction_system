@@ -427,8 +427,13 @@ details[open] .arrow{transform:rotate(90deg)}
 /* 输入非法状态标记（多页面通用） */
 .invalid{ border-color:#ef4444 !important; box-shadow:0 0 0 1px rgba(239,68,68,.2) !important; }
 
-/* 表格图片单元（batch_edit.html） */
-td.img-cell{ overflow: visible !important; position: relative !important; }
+/* 表格图片单元（batch_edit.html）
+   注意：冻结列需要 position: sticky，这里不能用 relative !important 覆盖 */
+td.img-cell{ overflow: visible !important; position: relative; }
+
+/* 当开启冻结时，强制让图片列也能 sticky（确保与 list 一致） */
+.table-freeze-on td.img-cell.freeze-col{ position: sticky !important; }
+
 .thumb-wrap{ position: relative; width: 100%; display:flex; justify-content:center; }
 /* 图片上传拖放区域（batch_edit.html） */
 .drop{

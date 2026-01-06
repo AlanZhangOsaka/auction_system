@@ -22,10 +22,17 @@
         <input type="checkbox" id="hover-enable" />
         <span>开启悬停大图</span>
       </label>
+
+      <!-- 固定编号图片（默认关闭） -->
+      <label class="btn toggle">
+        <input type="checkbox" id="freeze-enable" />
+        <span>固定编号图片</span>
+      </label>
+
       <button class="btn del" id="btn-clean-empty">删除无信息物品</button>
     </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap" id="tbl-scroll">
       <table class="table excel batch-fixed" id="tbl">
         <colgroup>
           <col style="width:120px;"><!-- 内部编号 -->
@@ -42,8 +49,8 @@
         </colgroup>
         <thead>
           <tr>
-            <th class="th-center">内部编号</th>
-            <th>图片</th>
+            <th class="th-center freeze-col freeze-1">内部编号</th>
+            <th class="freeze-col freeze-2">图片</th>
             <th>位置</th>
             <th>箱号</th>
             <th>种类</th>
@@ -199,7 +206,7 @@ function renderRows(rows){
         </button>
         <!-- 隐藏域：用于保存/清空 item_image -->
         <input type="hidden" class="input" data-field="item_image" value="${imgSrc}" data-init="${imgSrc}">
-      </div>`;
+      </div>`
 
 
     const locVal  = row.item_location || '';
@@ -209,7 +216,7 @@ function renderRows(rows){
     const rpVal   = (row.reserve_price  ?? '');
 
     tr.innerHTML = `
-      <td class="code-td">
+      <td class="code-td freeze-col freeze-1">
         ${(()=>{
           const code = row.item_code || '';
           const m = code.match(/^(.*)_(\d+)$/);
@@ -224,7 +231,7 @@ function renderRows(rows){
         })()}
       </td>
 
-      <td class="img-cell">${imgCell}</td>
+      <td class="img-cell freeze-col freeze-2">${imgCell}</td>
       <td><input class="input" value="${locVal}"  data-field="item_location" data-init="${locVal}"  placeholder="位置"></td>
       <td>${boxInput}</td>
       <td>${catSelect}</td>
@@ -260,6 +267,7 @@ function renderRows(rows){
       inp.addEventListener('blur', validate); inp.addEventListener('change', validate);
     });
   });
+
 
   tbody.querySelectorAll('[data-save]').forEach(btn=> btn.addEventListener('click', ()=>saveRow(btn.closest('tr'))));
   tbody.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>deleteRow(btn.closest('tr'))));
@@ -565,6 +573,79 @@ async function saveAll(){
 /* 顶部按钮与 FAB 事件 */
 document.getElementById('save-all').addEventListener('click', saveAll);
 document.getElementById('save-fab').addEventListener('click', saveAll);
+
+/* ===== 固定编号图片：冻结前2列（默认关闭） ===== */
+document.addEventListener('DOMContentLoaded', () => {
+  const table = document.querySelector('.table.batch-fixed');
+  const freezeToggle = document.getElementById('freeze-enable');
+
+  let ro = null;
+
+  function computeFreezeLefts(){
+    if(!table) return;
+    const headRow = table.tHead ? table.tHead.rows[0] : null;
+    const firstBodyRow = table.tBodies?.[0]?.rows?.[0] || null;
+    const sampleRow = headRow || firstBodyRow;
+    if(!sampleRow) return;
+
+    const lefts = {};
+    let acc = 0;
+
+    for (let i = 1; i <= 2; i++){
+      const cell = sampleRow.querySelector('.freeze-' + i);
+      if (cell){
+        lefts[i] = acc;
+        acc += cell.getBoundingClientRect().width;
+      }
+    }
+
+    for (let i=1; i<=2; i++){
+      table.querySelectorAll('.freeze-' + i).forEach(el=>{
+        el.style.left = (lefts[i] ?? 0) + 'px';
+      });
+    }
+  }
+
+  function enableFreeze(on){
+    if(!table) return;
+
+    const scroller = document.getElementById('tbl-scroll');
+
+    if(on){
+      table.classList.add('table-freeze-on');
+      computeFreezeLefts();
+
+      window.addEventListener('resize', computeFreezeLefts);
+      if (scroller) scroller.addEventListener('scroll', computeFreezeLefts, { passive:true });
+
+      if (ro) { try{ ro.disconnect(); }catch(e){} }
+      ro = new ResizeObserver(computeFreezeLefts);
+      ro.observe(table);
+    }else{
+      table.classList.remove('table-freeze-on');
+      table.querySelectorAll('.freeze-col').forEach(el=> el.style.left = '');
+
+      window.removeEventListener('resize', computeFreezeLefts);
+      if (scroller) scroller.removeEventListener('scroll', computeFreezeLefts);
+
+      if (ro) { try{ ro.disconnect(); }catch(e){} ro = null; }
+    }
+  }
+
+  if (freezeToggle){
+    // 默认关闭
+    freezeToggle.checked = false;
+    enableFreeze(false);
+    freezeToggle.addEventListener('change', ()=> enableFreeze(freezeToggle.checked));
+  }
+
+  // 当表格渲染/刷新后，若正在冻结，则重算一次
+  document.addEventListener('list:rowsRendered', ()=>{
+    if (freezeToggle && freezeToggle.checked) computeFreezeLefts();
+  });
+});
+
+
 
 /* Ctrl+S */
 document.addEventListener('keydown', (e)=>{

@@ -847,6 +847,14 @@ async function preloadOptions(){
     // 种类
     const rc = await fetch('/api/settings/item_categories'); const cats = await rc.json();
     window.CAT_OPTIONS = (cats && cats.items) ? cats.items : [];
+    // 同步填充批量种类下拉（修改种类至）
+    const bulkCat = document.getElementById('bulk-cat');
+    if (bulkCat) {
+      bulkCat.innerHTML =
+        `<option value="">（未选择）</option>` +
+        window.CAT_OPTIONS.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
 
     // 箱号（从 /api/settings/boxes/list 读取）
     const rb    = await fetch('/api/settings/boxes/list');
