@@ -573,6 +573,15 @@ def create_app():
                 # ---------- 统一重新编号 section_order ----------
                 # 按前端 order 升序，再按原始 order 稳定排序
                 keep_list.sort(key=lambda t: (t[0], t[1]))
+
+                # 关键：先写入一批“临时不冲突”的 order，避免 1<->2 互换时触发 UNIQUE(auction_id, section_order)
+                tmp_base = 10 ** 6
+                for i, (_, __, sec) in enumerate(keep_list, start=1):
+                    sec.section_order = tmp_base + i
+
+                session.flush()  # 让临时值先落库/flush，再做第二次改写
+
+                # 第二步：再写回 1..N 的最终顺序号
                 for idx, (_, __, sec) in enumerate(keep_list, start=1):
                     sec.section_order = idx
 

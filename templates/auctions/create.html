@@ -9,88 +9,6 @@
   </div>
 
   <div class="card">
-    <style>
-      .form-box {
-          max-width: 720px;
-          background: #fff;
-          border: 1px solid #ddd;
-          padding: 20px 24px 24px;
-          border-radius: 6px;
-      }
-      .form-title {
-          font-size: 18px;
-          font-weight: bold;
-          margin-bottom: 16px;
-      }
-      .form-row {
-          display: flex;
-          align-items: center;
-          margin-bottom: 10px;
-      }
-      .form-row label {
-          width: 140px;
-          text-align: right;
-          margin-right: 10px;
-      }
-      .form-row input[type="text"],
-      .form-row input[type="number"],
-      .form-row input[type="date"],
-      .form-row select {
-          flex: 1;
-          padding: 4px 6px;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-      }
-      .inline-note {
-          margin-left: 8px;
-          font-size: 12px;
-          color: #666;
-      }
-      .percent-input {
-          width: 120px;
-      }
-      .number-input {
-          width: 160px;
-      }
-      .btn-group {
-          margin-left: 8px;
-      }
-      .btn-mini {
-          display: inline-block;
-          padding: 2px 8px;
-          font-size: 12px;
-          border-radius: 4px;
-          border: 1px solid #999;
-          background: #fafafa;
-          cursor: pointer;
-          margin-right: 4px;
-      }
-      .btn-mini:hover {
-          background: #eee;
-      }
-      .catalog-radio {
-          margin-right: 12px;
-      }
-      .submit-row {
-          margin-top: 18px;
-          text-align: center;
-      }
-      .btn-main {
-          padding: 6px 18px;
-          border-radius: 4px;
-          border: none;
-          background: #007bff;
-          color: #fff;
-          cursor: pointer;
-      }
-      .btn-main:hover { background: #0064d6; }
-      #msg {
-          margin-top: 10px;
-          text-align: center;
-          font-size: 13px;
-      }
-    </style>
-
     <div class="form-box">
       <div class="form-title">创建拍卖会</div>
 
@@ -163,7 +81,7 @@
       <div class="form-row">
           <label>拍卖日期：</label>
           <input type="date" id="start_date" class="number-input">
-          <span style="margin: 0 6px;">～</span>
+          <span>～</span>
           <input type="date" id="end_date" class="number-input">
           <span class="inline-note">可只填开始日期，结束日期留空则自动视为同一天</span>
       </div>

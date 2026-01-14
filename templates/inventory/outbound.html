@@ -52,16 +52,17 @@
     <div class="table-wrap table-scroll" id="tbl-scroll">
       <table class="table batch-fixed" id="tbl">
         <colgroup>
-          <col style="width:var(--w-edit);" />    <!-- 多选框 -->
-          <col style="width:var(--w-code);" />    <!-- 内部编号 -->
-          <col style="width:var(--w-img);" />     <!-- 图片 -->
-          <col style="width:var(--w-auction);" /> <!-- 物品状态（借用拍卖会列宽） -->
-          <col style="width:var(--w-cat);" />     <!-- 种类 -->
-          <col style="width:var(--w-edit);" />    <!-- 位置（与选择同宽） -->
-          <col style="width:var(--w-edit);" />    <!-- 箱号（与选择同宽） -->
-          <col style="width:220px;" />            <!-- 名称（独立设定为稍窄宽度） -->
-          <col style="width:var(--w-acc);" />     <!-- 附属品 -->
+          <col class="col-edit" />        <!-- 多选框 -->
+          <col class="col-code" />        <!-- 内部编号 -->
+          <col class="col-img" />         <!-- 图片 -->
+          <col class="col-auction" />     <!-- 物品状态（借用拍卖会列宽） -->
+          <col class="col-cat" />         <!-- 种类 -->
+          <col class="col-edit" />        <!-- 位置（与选择同宽） -->
+          <col class="col-edit" />        <!-- 箱号（与选择同宽） -->
+          <col class="col-name-narrow" /> <!-- 名称（独立设定为稍窄宽度） -->
+          <col class="col-acc" />         <!-- 附属品 -->
         </colgroup>
+
 
         <thead>
         <tr>
@@ -110,7 +111,7 @@
   <div id="top-toast" class="top-toast" role="status" aria-live="polite"></div>
 
   <!-- 预览浮窗（直接复用 batch_edit 中的结构，配合 hover_preview.js 使用） -->
-  <div id="img-preview" class="img-preview" style="left:24px; top:120px;">
+  <div id="img-preview" class="img-preview">
     <div class="img-preview-inner">
       <div class="preview-header" id="img-preview-drag" title="按住此处可拖动">
         <span class="drag-handle">⋮⋮</span>
@@ -126,105 +127,6 @@
     </div>
   </div>
 </div>
-
-<style>
-  .filters{margin-bottom:16px;}
-  .filter-row{
-    display:flex;
-    flex-wrap:wrap;
-    gap:12px;
-    align-items:center;
-    margin-bottom:8px;
-  }
-  .filter-item{display:flex; flex-direction:column; gap:4px;}
-  .filter-label{font-size:13px; color:#6b7280;}
-  .checkbox-inline{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    font-size:14px;
-    color:#374151;
-    margin-right:16px;
-  }
-  .checkbox-inline input{transform:scale(1.05);}
-  .muted{color:#6b7280; font-size:13px;}
-  .strong{font-weight:600;}
-  .table-footer{
-    margin-top:8px;
-    font-size:13px;
-    color:#6b7280;
-    display:flex;
-    justify-content:flex-end;
-  }
-
-  /* 出库悬停面板（右下角固定） */
-  .outbound-panel{
-    position:fixed;
-    right:16px;
-    bottom:16px;
-    z-index:40;
-    background:#111827;
-    color:#f9fafb;
-    padding:10px 12px;
-    border-radius:12px;
-    box-shadow:0 10px 25px rgba(15,23,42,0.45);
-    max-width:360px;
-  }
-  .outbound-info{
-    font-size:13px;
-    margin-bottom:6px;
-    white-space:nowrap;
-  }
-  .outbound-actions{
-    display:flex;
-    flex-wrap:wrap;
-    gap:6px;
-    justify-content:flex-end;
-  }
-  .outbound-panel .btn.sm{
-    padding:2px 8px;
-    font-size:12px;
-    height:26px;
-    line-height:22px;
-  }
-  .outbound-panel .btn.primary{
-    background:#10b981;
-    border-color:#10b981;
-  }
-
-  /* 行选中高亮 */
-  #tbody tr.selected{
-    background:#ecfeff;
-  }
-
-  /* 名称列允许换行显示（覆盖全局的 nowrap） */
-  td.col-name, th.col-name{
-    white-space:normal;
-    word-break:break-all;
-  }
-
-  /* 根据屏幕缩小优化位置 */
-  @media (max-width:640px){
-    .outbound-panel{
-      left:8px;
-      right:8px;
-      bottom:8px;
-      max-width:none;
-    }
-    .outbound-actions{
-      justify-content:space-between;
-    }
-  }
-
-  /* 列表缩略图：统一小尺寸，配合缩略图接口加速 */
-  #tbody img.thumb{
-    width: 80px;
-    height: 80px;
-    object-fit: cover;
-    display: block;
-    margin:0 auto;
-  }
-</style>
 
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hover_preview.js') }}"></script>

@@ -3,7 +3,7 @@
 
 
 {% block content %}
-<div class="page-container" style="padding:12px;">
+<div class="page-container">
 
   <h2 class="page-title">在库查询 / 修改</h2>
 
@@ -24,10 +24,10 @@
       <div class="multi-display" id="seller-display" tabindex="0" title="点击选择出品人">
         <span class="placeholder">出品人（姓名/代号）</span>
       </div>
-      <div class="multi-panel" id="seller-panel" style="display:none;">
-        <div class="opt" style="padding:6px 8px;">
-          <input id="seller-input" type="text" placeholder="输入字母或汉字筛选"
-                 style="width:100%;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;">
+      <div class="multi-panel" id="seller-panel">
+        <div class="opt opt--tight">
+        <input id="seller-input" type="text" placeholder="输入字母或汉字筛选" class="multi-filter-input">
+
         </div>
         <div id="seller-options" class="opt-list"></div>
         <div class="panel-actions">
@@ -89,7 +89,7 @@
 
 
       <!-- 左侧常驻批量操作面板 -->
-<div id="bulk-panel" class="bulk-panel draggable resizable" style="display:none;">
+<div id="bulk-panel" class="bulk-panel draggable resizable">
   <div class="bulk-title" id="bulk-panel-drag">批量操作</div>
   <div class="bulk-buttons">
     <button type="button" class="btn sm" id="bulk-select-all">全选</button>
@@ -127,28 +127,29 @@
 
       <!-- 表格容器（仅表头 + 占位行） -->
 
-<div class="table-wrap" style="border:1px solid #e5e7eb;border-radius:10px;">
+<div class="table-wrap">
+
   <div class="scroll-wrap" id="tbl-scroll">
     <table class="table batch-fixed">
 <colgroup>
-  <col style="width:var(--w-edit);" />
-  <col style="width:var(--w-code);" />
-  <col style="width:var(--w-img);" />
-  <col style="width:var(--w-auction);" />
-  <col style="width:var(--w-locbox);" />
-  <col style="width:var(--w-cat);" />
-  <col style="width:var(--w-name);" />
-  <col style="width:var(--w-seller);" />
-  <col style="width:var(--w-size);" />
-  <col style="width:var(--w-sp);" />
-  <col style="width:var(--w-rp);" />
-  <col style="width:var(--w-acc);" />
-  <col style="width:var(--w-material);" />
-  <col style="width:var(--w-seal);" />
-  <col style="width:var(--w-insc);" />
-  <col style="width:var(--w-desc);" />
-  <col style="width:var(--w-author);" />
-  <col style="width:var(--w-op);" />
+    <col class="col-edit"/>
+    <col class="col-code"/>
+    <col class="col-img"/>
+    <col class="col-auction"/>
+    <col class="col-locbox"/>
+    <col class="col-cat"/>
+    <col class="col-name"/>
+    <col class="col-seller"/>
+    <col class="col-size"/>
+    <col class="col-sp"/>
+    <col class="col-rp"/>
+    <col class="col-acc"/>
+    <col class="col-material"/>
+    <col class="col-seal"/>
+    <col class="col-insc"/>
+    <col class="col-desc"/>
+    <col class="col-author"/>
+    <col class="col-op"/>
 </colgroup>
 <thead>
 <tr>
@@ -217,10 +218,9 @@
 </div> <!-- table-wrap -->
 
         <!-- 拍卖会列前端多选筛选面板 -->
-<div id="auction-filter-panel"
-     style="display:none; position:absolute; z-index:9999; background:#ffffff; border:1px solid #d1d5db; border-radius:6px; box-shadow:0 4px 10px rgba(0,0,0,.15); padding:8px; min-width:160px; max-height:260px; overflow:auto; font-size:12px;">
+<div id="auction-filter-panel" class="auction-filter-panel">
   <div id="auction-filter-body"></div>
-  <div style="margin-top:6px; text-align:right;">
+  <div class="panel-footer">
     <button type="button" class="btn sm" id="auction-filter-apply">应用</button>
     <button type="button" class="btn sm" id="auction-filter-clear">清除</button>
   </div>
@@ -231,7 +231,7 @@
   </div> <!-- .center-wrap -->
 
 <!-- 预览浮窗（与 batch_edit.html 相同 DOM） -->
-<div id="img-preview" class="img-preview" style="left:24px; top:120px; display:none;">
+<div id="img-preview" class="img-preview">
   <div class="img-preview-inner">
     <div class="preview-header" id="img-preview-drag" title="按住此处可拖动">
       <span class="drag-handle">⋮⋮</span>
@@ -764,7 +764,7 @@ document.addEventListener('click', (e)=>{
       </tr>
     `);
   }
-  TBY.innerHTML = rows.join('') || `<tr><td colspan="17" class="td-center" style="color:#6b7280;">暂无在库物品</td></tr>`;
+  TBY.innerHTML = rows.join('') || `<tr><td colspan="17" class="td-center td-muted">暂无在库物品</td></tr>`;
     document.dispatchEvent(new Event('list:rowsRendered'));
 
 
@@ -802,7 +802,7 @@ document.getElementById('btn-query').addEventListener('click', async ()=>{
     renderRows(res.items);
     setStats(res.total, m);   // n=本次 total，m=全库在库
   }catch(e){
-    TBY.innerHTML = `<tr><td colspan="17" class="td-center" style="color:#ef4444;">加载失败：${(e && e.message) || e}</td></tr>`;
+    TBY.innerHTML = `<tr><td colspan="17" class="td-center td-error">加载失败：${(e && e.message) || e}</td></tr>`;
   }
 });
 
@@ -927,7 +927,7 @@ if (field === 'sp' || field === 'rp'){
   }).join('');
   inner = `
     <div class="row">
-      <select id="f-cat" style="min-width:160px">
+      <select id="f-cat">
         <option value="">（全部）</option>
         ${opts}
       </select>
@@ -1037,7 +1037,7 @@ let AUCTION_FILTER_VALUES = new Set();
       const id = 'auction-filter-' + v.replace(/\s+/g,'_');
       const checked = AUCTION_FILTER_VALUES.has(v) ? 'checked' : '';
       body.insertAdjacentHTML('beforeend', `
-        <label style="display:block; margin:2px 0; cursor:pointer;">
+        <label class="chk-label">
           <input type="checkbox" id="${id}" value="${v}" ${checked}> ${v}
         </label>
       `);
@@ -1677,7 +1677,7 @@ function renderSellerOptions(filter=''){
         <span>${s.code}｜${s.name}<span${muted}>（${s.count}）</span></span>
       </label>
     `;
-  }).join('') || `<div class="muted" style="padding:6px 10px;">无匹配结果</div>`;
+  }).join('') || `<div class="muted muted-pad">无匹配结果</div>`;
 }
 
 (function bindSellerMulti(){
@@ -1689,7 +1689,7 @@ function renderSellerOptions(filter=''){
   const clrAll= document.getElementById('seller-clear-all');
 
   function open(){
-    panel.style.display = 'block';
+    panel.style.display = 'flex';
     input.focus();
   }
   function close(){

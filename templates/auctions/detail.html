@@ -13,7 +13,7 @@
   <form method="post">
     <input type="hidden" name="submit_type" id="submit_type" value="save">
 
-    <div class="card" style="max-width:900px;">
+    <div class="card auction-detail-card">
       <h2 class="card-title">基础信息</h2>
 
       <div class="form-row">
@@ -71,7 +71,7 @@
         <label class="form-label">图录费计算方式：</label>
         <label class="radio-inline">
           <input type="radio" name="catalog_method" value="A"
-                 {% if config and config.catalog_method == 'A' %}checked{% endif %}> A 单件
+                 {% if config and config.catalog_method =='A' %}checked{% endif %}> A 单件
         </label>
         <label class="radio-inline">
           <input type="radio" name="catalog_method" value="B"
@@ -101,17 +101,17 @@
       </div>
     </div>
 
-        <div class="card" style="max-width:900px;margin-top:16px;">
+        <div class="card auction-detail-card">
       <h2 class="card-title">专场列表</h2>
 
       <table class="table">
         <thead>
           <tr>
-            <th style="width:70px;">顺序</th>
-            <th style="width:60px;">抓手</th>
+            <th class="th-order">顺序</th>
+            <th class="th-drag">抓手</th>
             <th>专场名称</th>
-            <th style="width:200px;">拍卖日期</th>
-            <th style="width:230px;">操作</th>
+            <th class="th-date">拍卖日期</th>
+            <th class="th-op">操作</th>
           </tr>
         </thead>
         <tbody id="section-table-body">
@@ -126,7 +126,7 @@
 
             <!-- 抓手 -->
             <td>
-              <span class="drag-handle" style="cursor:move;font-size:18px;">☰</span>
+              <span class="drag-handle">☰</span>
             </td>
 
             <!-- 可编辑名称 -->
@@ -148,18 +148,10 @@
             </td>
 
             <!-- 操作按钮 + 隐藏字段 -->
-            <td>
-              <button type="button"
-                      class="btn section-up"
-                      style="padding:2px 6px;font-size:12px;">上升</button>
-              <button type="button"
-                      class="btn section-down"
-                      style="padding:2px 6px;font-size:12px;margin-left:4px;">下降</button>
-              <button type="button"
-                      class="btn section-delete"
-                      style="padding:2px 6px;font-size:12px;margin-left:8px;background:#e74c3c;color:#fff;">
-                删除
-              </button>
+            <td class="section-actions">
+              <button type="button" class="btn section-up">上升</button>
+              <button type="button" class="btn section-down">下降</button>
+              <button type="button" class="btn section-delete">删除</button>
 
               <!-- 顺序、删除标记 -->
               <input type="hidden"
@@ -178,13 +170,13 @@
           </tr>
         {% else %}
           <tr>
-            <td colspan="5" style="text-align:center;color:#888;">尚未创建专场</td>
+            <td colspan="5" class="section-empty">尚未创建专场</td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
 
-      <h3 style="margin-top:12px;">新增专场</h3>
+      <h3 class="section-add-title">新增专场</h3>
       <div class="form-row">
         <label class="form-label">专场名称：</label>
         <input type="text" name="new_section_name" class="input">
@@ -197,14 +189,12 @@
                max="{{ auction.auction_end_date }}">
         <span class="inline-note">可留空，后续再补（如填写，必须在拍卖会日期范围内）</span>
       </div>
-
     </div>
 
-
-        <div class="submit-row" style="margin-top:18px;">
+    <div class="submit-row detail-actions">
       <button type="submit" class="btn-main" id="btn-save">保存修改</button>
-      <button type="submit" class="btn" id="btn-add" style="margin-left:8px;">新增专场</button>
-      <a href="{{ url_for('auctions_index') }}" class="btn" style="margin-left:8px;">返回列表</a>
+      <button type="submit" class="btn" id="btn-add">新增专场</button>
+      <a href="{{ url_for('auctions_index') }}" class="btn">返回列表</a>
     </div>
   </form>
 </div>

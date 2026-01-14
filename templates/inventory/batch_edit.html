@@ -8,7 +8,7 @@
     <div class="btn-row" id="top-btn-row">
       <label class="btn">
         选择文件夹上传（按文件名精确匹配）
-        <input type="file" id="folder" webkitdirectory directory multiple style="display:none;">
+      <input type="file" id="folder" class="u-hidden" webkitdirectory directory multiple>
       </label>
       <button class="btn" id="add-item-btn">新增一件（可选序号）</button>
       <button class="btn" id="add-many-btn">新增多件（末尾续号）</button>
@@ -32,38 +32,45 @@
       <button class="btn del" id="btn-clean-empty">删除无信息物品</button>
     </div>
 
-    <div class="table-wrap" id="tbl-scroll">
-      <table class="table excel batch-fixed" id="tbl">
-        <colgroup>
-          <col style="width:120px;"><!-- 内部编号 -->
-          <col style="width:120px;"><!-- 图片 -->
-          <col style="width:90px;"><!-- 位置 -->
-          <col style="width:70px;"><!-- 箱号 -->
-          <col style="width:120px;"><!-- 种类 -->
-          <col style="width:220px;"><!-- 名称 -->
-          <col style="width:190px;"><!-- 尺寸 -->
-          <col style="width:120px;"><!-- 起拍价 -->
-          <col style="width:120px;"><!-- 底价 -->
-          <col style="width:180px;"><!-- 附属品 -->
-          <col style="width:120px;"><!-- 操作 -->
-        </colgroup>
-        <thead>
-          <tr>
-            <th class="th-center freeze-col freeze-1">内部编号</th>
-            <th class="freeze-col freeze-2">图片</th>
-            <th>位置</th>
-            <th>箱号</th>
-            <th>种类</th>
-            <th>名称</th>
-            <th>尺寸</th>
-            <th>起拍价<br><small>（万日元）</small></th>
-            <th>底价<br><small>（万日元）</small></th>
-            <th>附属品</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <div class="table-wrap">
+      <div class="scroll-wrap" id="tbl-scroll">
+          <table class="table excel batch-fixed" id="tbl">
+            <colgroup>
+                <col class="col-code"><!-- 内部编号 -->
+                <col class="col-img"><!-- 图片 -->
+                <col class="col-loc"><!-- 位置 -->
+                <col class="col-box"><!-- 箱号 -->
+                <col class="col-cat"><!-- 种类 -->
+                <col class="col-name"><!-- 名称 -->
+                <col class="col-size"><!-- 尺寸 -->
+                <col class="col-sp"><!-- 起拍价 -->
+                <col class="col-rp"><!-- 底价 -->
+                <col class="col-acc"><!-- 附属品 -->
+                <col class="col-act"><!-- 操作 -->
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="th-center freeze-col freeze-1">内部编号</th>
+                <th class="freeze-col freeze-2">图片</th>
+                <th>位置</th>
+                <th>箱号</th>
+                <th>种类</th>
+                <th>名称</th>
+                <th>尺寸</th>
+                <th>起拍价<br><small>（万日元）</small></th>
+                <th>底价<br><small>（万日元）</small></th>
+                <th>附属品</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div> <!-- scroll-wrap -->
+        </div>
+        <div class="xbar" id="xbar" aria-hidden="true">
+          <div class="xthumb" id="xthumb"></div>
+        </div>
+
     </div>
 
     <div id="datalist-holder"></div>
@@ -74,7 +81,7 @@
 <button id="save-fab" class="btn primary save-fab" title="保存全部（Ctrl+S）">保存全部</button>
 
 <!-- 预览浮窗 -->
-<div id="img-preview" class="img-preview" style="left:24px; top:120px;">
+<div id="img-preview" class="img-preview">
   <div class="img-preview-inner">
     <div class="preview-header" id="img-preview-drag" title="按住此处可拖动">
       <span class="drag-handle">⋮⋮</span>
@@ -178,7 +185,7 @@ function renderRows(rows){
           <span class="text">${(row.accessories||[]).join('、') || '<span class="placeholder">附属品</span>'}</span>
           <span aria-hidden="true">▾</span>
         </div>
-        <div class="multi-panel"><div class="opts">${accPanel||'<div class="opt" style="color:#9ca3af;">（无可选项）</div>'}</div>
+        <div class="multi-panel"><div class="opts">${accPanel||'<div class="opt opt-muted">（无可选项）</div>'}</div>
           <div class="panel-actions">
             <button type="button" class="btn sm" data-acc-cancel>取消</button>
             <button type="button" class="btn sm primary" data-acc-ok>确定</button>
@@ -199,12 +206,10 @@ function renderRows(rows){
           <span class="hint">拖拽/单击上传</span>
           <input type="file" accept="image/*">
         </div>
-        <!-- 响应式“清除图片”按钮：桌面端显示文字，手机端显示 × -->
         <button type="button" class="btn sm" data-clear-img>
           <span class="clear-text">清除图片</span>
           <span class="clear-icon">×</span>
         </button>
-        <!-- 隐藏域：用于保存/清空 item_image -->
         <input type="hidden" class="input" data-field="item_image" value="${imgSrc}" data-init="${imgSrc}">
       </div>`
 
@@ -274,6 +279,7 @@ function renderRows(rows){
 
   bindPreview();
   setupFab();
+
 }
 
 /* 附属品组件 */
@@ -325,33 +331,44 @@ function initDropUpload(tr, code){
   // 清除图片按钮
   const btnClear = tr.querySelector('[data-clear-img]');
   if(btnClear){
-    btnClear.addEventListener('click', async ()=>{
-      const img = box.querySelector('img.thumb'); if(img){ img.remove(); }
-      box.closest('[data-thumb]')?.classList.remove('has-img');
-      const hidden = tr.querySelector('input[data-field="item_image"]');
-      if(hidden){ hidden.value=''; }
+        btnClear.addEventListener('click', async (e)=>{
+          e.preventDefault();
+          e.stopPropagation();
 
-      // 手机端（<=768px）：清除后立即保存到后端
-      const isMobile = window.matchMedia("(max-width: 768px)").matches;
-      if(isMobile){
-        try{
-          const res = await fetch('/api/items/'+encodeURIComponent(code), {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ item_image: null })
-          });
-          if(!res.ok){
-            const d = await res.json().catch(()=>({}));
-            alert('清除失败：'+(d.error||res.status));
-          } else {
-            AU.showToast('图片已清除');
-          }
-        }catch(e){
-          alert('清除失败：'+(e.message||e));
-        }
+          if(!window.confirm('是否清除图片？')) return;
+
+          const img = box.querySelector('img.thumb'); if(img){ img.remove(); }
+          box.closest('[data-thumb]')?.classList.remove('has-img');
+          const hidden = tr.querySelector('input[data-field="item_image"]');
+          if(hidden){ hidden.value=''; }
+
+            // 桌面/手机：清除后立即保存到后端（无需 Ctrl+S）
+            try{
+              const res = await fetch('/api/items/'+encodeURIComponent(code), {
+                method:'PUT',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ item_image: null })
+              });
+              if(!res.ok){
+                const d = await res.json().catch(()=>({}));
+                alert('清除失败：'+(d.error||res.status));
+                return;
+              }
+
+              // 同步 init，避免后续 saveAll 仍认为有改动
+              const hidden2 = tr.querySelector('input[data-field="item_image"]');
+              if(hidden2){
+                hidden2.value = '';
+                hidden2.setAttribute('data-init', '');
+              }
+
+              AU.showToast('图片已清除');
+            }catch(e){
+              alert('清除失败：'+(e.message||e));
+            }
+
+        });
       }
-    });
-  }
 
   box.addEventListener('dragover', e=>{ e.preventDefault(); box.classList.add('dragover'); });
   box.addEventListener('dragleave', ()=> box.classList.remove('dragover'));
@@ -574,28 +591,29 @@ async function saveAll(){
 document.getElementById('save-all').addEventListener('click', saveAll);
 document.getElementById('save-fab').addEventListener('click', saveAll);
 
-/* ===== 固定编号图片：冻结前2列（默认关闭） ===== */
+/* ===== 固定编号图片：冻结前2列（默认关闭）| 同 list 实现（batch_edit 无选择列） ===== */
 document.addEventListener('DOMContentLoaded', () => {
   const table = document.querySelector('.table.batch-fixed');
   const freezeToggle = document.getElementById('freeze-enable');
 
   let ro = null;
+  let scroller = null;
 
   function computeFreezeLefts(){
     if(!table) return;
     const headRow = table.tHead ? table.tHead.rows[0] : null;
     const firstBodyRow = table.tBodies?.[0]?.rows?.[0] || null;
-    const sampleRow = headRow || firstBodyRow;
+    const sampleRow = headRow || firstBodyRow; // 按 list：headRow 优先
     if(!sampleRow) return;
 
     const lefts = {};
-    let acc = 0;
+    let acc = 0; // batch_edit 没有 col-select-left，直接从0开始
 
     for (let i = 1; i <= 2; i++){
       const cell = sampleRow.querySelector('.freeze-' + i);
       if (cell){
         lefts[i] = acc;
-        acc += cell.getBoundingClientRect().width;
+        acc += cell.getBoundingClientRect().width; // 按 list：用 rect 宽度
       }
     }
 
@@ -609,43 +627,37 @@ document.addEventListener('DOMContentLoaded', () => {
   function enableFreeze(on){
     if(!table) return;
 
-    const scroller = document.getElementById('tbl-scroll');
+    // 注意：tbl-scroll 要和 list 一样是“横向滚动容器”的那个元素（scroll-wrap）
+    scroller = document.getElementById('tbl-scroll');
 
     if(on){
       table.classList.add('table-freeze-on');
       computeFreezeLefts();
 
       window.addEventListener('resize', computeFreezeLefts);
-      if (scroller) scroller.addEventListener('scroll', computeFreezeLefts, { passive:true });
 
       if (ro) { try{ ro.disconnect(); }catch(e){} }
       ro = new ResizeObserver(computeFreezeLefts);
       ro.observe(table);
+
+      if (scroller) scroller.addEventListener('scroll', computeFreezeLefts, { passive:true });
     }else{
       table.classList.remove('table-freeze-on');
       table.querySelectorAll('.freeze-col').forEach(el=> el.style.left = '');
 
       window.removeEventListener('resize', computeFreezeLefts);
-      if (scroller) scroller.removeEventListener('scroll', computeFreezeLefts);
 
+      if (scroller) scroller.removeEventListener('scroll', computeFreezeLefts);
       if (ro) { try{ ro.disconnect(); }catch(e){} ro = null; }
     }
   }
 
   if (freezeToggle){
-    // 默认关闭
     freezeToggle.checked = false;
     enableFreeze(false);
     freezeToggle.addEventListener('change', ()=> enableFreeze(freezeToggle.checked));
   }
-
-  // 当表格渲染/刷新后，若正在冻结，则重算一次
-  document.addEventListener('list:rowsRendered', ()=>{
-    if (freezeToggle && freezeToggle.checked) computeFreezeLefts();
-  });
 });
-
-
 
 /* Ctrl+S */
 document.addEventListener('keydown', (e)=>{
@@ -843,6 +855,82 @@ document.getElementById('btn-clean-empty').addEventListener('click', async ()=>{
   }
 });
 </script>
+
+<!-- 固定在窗口底部的横向拖动条（桌面常驻，仅一个） -->
+<script>
+(function(){
+  const wrap  = document.getElementById('tbl-scroll') || document.querySelector('.table-wrap');
+  const card  = document.querySelector('.card');
+  const bar   = document.getElementById('xbar');
+  const thumb = document.getElementById('xthumb');
+  if(!wrap || !bar || !thumb) return;
+
+  let thumbMax = 0;
+  let dragging = false, startX = 0, startLeft = 0;
+
+  function alignBar(){
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    bar.style.left = Math.max(12, r.left) + 'px';
+    bar.style.width = Math.max(200, r.width) + 'px';
+  }
+  function overflowed(){ return wrap.scrollWidth > wrap.clientWidth + 1; }
+  function syncFromScroll(){
+    const maxScroll = wrap.scrollWidth - wrap.clientWidth;
+    const p = maxScroll ? (wrap.scrollLeft / maxScroll) : 0;
+    thumb.style.transform = `translateX(${p * (thumbMax||0)}px)`;
+  }
+  function refresh(){
+    alignBar();
+    const over = overflowed();
+    if (over){ bar.classList.remove('disabled'); }
+    else{ bar.classList.add('disabled'); }
+    const cw = wrap.clientWidth, sw = wrap.scrollWidth;
+    const barW  = bar.clientWidth || cw;
+    const ratio = Math.max(0, Math.min(1, cw / (sw || 1)));
+    const minW = 40;
+    const thumbW = over ? Math.max(minW, Math.round(barW * ratio)) : barW;
+    thumb.style.width = thumbW + 'px';
+    thumbMax = Math.max(0, barW - thumbW);
+    syncFromScroll();
+  }
+
+  wrap.addEventListener('scroll', syncFromScroll, { passive:true });
+
+  thumb.addEventListener('pointerdown', (e)=>{
+    if (bar.classList.contains('disabled')) return;
+    dragging = true; startX = e.clientX;
+    const m = (thumb.style.transform || '').match(/translateX\(([-\d.]+)px\)/);
+    startLeft = m ? parseFloat(m[1]) : 0;
+    thumb.setPointerCapture(e.pointerId);
+  });
+
+  thumb.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const dx = e.clientX - startX;
+    const x = Math.max(0, Math.min(thumbMax, startLeft + dx));
+    thumb.style.transform = `translateX(${x}px)`;
+    const maxScroll = wrap.scrollWidth - wrap.clientWidth;
+    const p = thumbMax ? (x / thumbMax) : 0;
+    wrap.scrollLeft = p * maxScroll;
+  });
+
+  thumb.addEventListener('pointerup', ()=>{
+    dragging = false;
+  });
+
+  window.addEventListener('resize', refresh);
+  refresh();
+
+  // 观察宽度变化：表格内容更新后也要刷新 thumb
+  if (window.ResizeObserver){
+    const ro = new ResizeObserver(()=>refresh());
+    ro.observe(wrap);
+    ro.observe(bar);
+  }
+})();
+</script>
+
 
 
 {% endblock %}

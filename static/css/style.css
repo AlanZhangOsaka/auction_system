@@ -1,79 +1,157 @@
+/* 类型：全局设计变量 | 格式：字号/控件尺寸等变量定义 | 影响文件：base.html、list.html、batch_edit.html、inbound.html（全页面通用） */
+:root {
+  /* 字号 */
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-md: 14px;
+  --font-lg: 16px;
+  --font-xl: 18px;
 
-/* 全局基础排版（所有页面通用，来源：base.html） */
+  /* 通用控件尺寸（输入框/按钮） */
+  --ctl-height-md: 36px;  /* 常规控件高度 */
+  --ctl-height-sm: 30px;  /* 小号控件高度 */
+  --ctl-radius-md: 8px;   /* 常规圆角 */
+  --ctl-radius-sm: 6px;   /* 小号圆角 */
+  --ctl-padding-x-md: 10px;
+  --ctl-padding-x-sm: 8px;
+
+  /* 入库页专用尺寸变量（page-inbound） */
+  --inbound-center-width: 800px;           /* 入库页居中区域宽度 */
+  --inbound-card-padding: 16px;            /* 入库卡片内边距 */
+  --inbound-card-radius: 12px;             /* 入库卡片圆角 */
+  --inbound-input-height: 34px;            /* 入库页输入框高度 */
+  --inbound-btn-height: 36px;              /* 入库页按钮高度 */
+  --inbound-btn-sm-height: 32px;           /* 入库页小按钮高度 */
+  --inbound-btn-sm-minwidth: 64px;         /* 入库页小按钮最小宽度 */
+
+  /* 出品人多选面板高度参数（seller-multi） */
+  --seller-panel-max-h-desktop: 70vh;      /* 桌面下拉面板最大高度 */
+  --seller-head-h: 56px;                   /* 面板头部高度 */
+  --seller-opt-list-min-h: 176px;          /* 列表最小高度 */
+  --seller-panel-h-mobile: 360px;          /* 手机下拉面板固定高度 */
+
+  /* 列表表格列宽（list.html） */
+  --w-edit:        60px;
+  --w-code:       120px;
+  --w-img:        100px;
+  --w-auction:     72px;
+  --w-locbox:     150px;
+  --w-cat:        120px;
+  --w-name:       260px;
+  --w-seller:     160px;
+  --w-size:       140px;
+  --w-sp:          90px;
+  --w-rp:          90px;
+  --w-acc:        160px;
+  --w-material:   140px;
+  --w-seal:       120px;
+  --w-insc:       180px;
+  --w-desc:       320px;
+  --w-author:     140px;
+  --w-op:          90px;
+  --w-name-narrow: 220px;
+
+}
+
+/* 类型：全局基础排版 | 格式：正文[14px #222 / 背景 #f6f7f9] | 影响文件：base.html（所有页面） */
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
                "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
                "WenQuanYi Micro Hei", sans-serif;
-  background: #f6f7f9;   
-  color: #222;           
+  background: #f6f7f9;
+  color: #222;
+  font-size: var(--font-md);
+  line-height: 1.6;
 }
 
+/* 类型：全局标题排版 | 格式：h1[18px] / h2[16px] / h3[14px] | 影响文件：base.html、list.html、batch_edit.html、inbound.html */
+h1, h2, h3 {
+  margin: 8px 0 12px;
+  font-weight: 600;
+}
+h1 { font-size: var(--font-xl); }
+h2 { font-size: var(--font-lg); }
+h3 { font-size: var(--font-md); }
 
+/* 类型：全局段落 | 格式：行高[1.7] | 影响文件：base.html（所有页面） */
+p {
+  line-height: 1.7;
+}
 
-/* 顶部导航栏（所有页面共用，来源：base.html） */
+/* 类型：全局弱化文字 | 格式：字号[12px #6b7280] | 影响文件：list.html、batch_edit.html、inbound.html 等 */
+.muted,
+.text-muted {
+  font-size: var(--font-xs);
+  color: #6b7280;
+}
+
+/* ========================= 顶部导航 / 布局 ========================= */
+
+/* 类型：顶部导航栏 | 格式：文字[14px #fff] / 背景[#1f2937] | 影响文件：base.html */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #1f2937;  
+  background: #1f2937;
   color: #fff;
 }
 
-/* 品牌/站点标题（base.html） */
+/* 类型：品牌标题 | 格式：加粗[600] | 影响文件：base.html */
 .brand {
-  font-weight: 600;     
+  font-weight: 600;
 }
 
-/* 导航链接与按钮（base.html 导航区域） */
-.nav a, .nav span {
-  color: #fff;          
-  margin-right: 20px;   
+/* 类型：顶部导航链接 | 格式：文字[14px #fff] | 影响文件：base.html */
+.nav a,
+.nav span {
+  color: #fff;
+  margin-right: 20px;
   text-decoration: none;
   cursor: pointer;
 }
 
-
-/* 导航下拉容器（base.html 导航） */
+/* 类型：顶部导航下拉容器 | 格式：定位 relative | 影响文件：base.html */
 .nav .dropdown {
   position: relative;
   display: inline-block;
   margin-right: 20px;
 }
 
-/* 导航下拉菜单（base.html 导航） */
+/* 类型：顶部导航下拉菜单 | 格式：背景[#fff] / 阴影 | 影响文件：base.html */
 .nav .menu {
   display: none;
   position: absolute;
   background: #fff;
   color: #222;
-  min-width: 180px;       
-  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  min-width: 180px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   border-radius: 8px;
   padding: 8px 0;
 }
 
+/* 类型：顶部导航下拉项 | 格式：行高 padding[8px 14px] | 影响文件：base.html */
 .nav .menu a {
   display: block;
   padding: 8px 14px;
   color: #111;
 }
 
+/* 类型：顶部导航下拉交互 | 格式：hover 展示菜单 | 影响文件：base.html */
 .nav .dropdown:hover .menu {
-  display: block;        
+  display: block;
 }
 
-
-
-/* 页面容器（所有页面通用） */
-.container {
+/* 类型：页面内容容器 | 格式：宽度[1500px居中] | 影响文件：base.html、list.html、batch_edit.html、inbound.html */
+.container,
+.center-wrap {
   max-width: 1500px;
   margin: 24px auto;
   padding: 0 16px;
 }
 
-/* 卡片宫格布局（如首页/概览使用） */
+/* 类型：卡片宫格布局 | 格式：自适应列宽 grid | 影响文件：主页/概览类页面 */
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -81,551 +159,1069 @@ body {
   margin-top: 16px;
 }
 
-
-/* 通用卡片（多页面共用：list、batch_edit、inbound 等） */
+/* 类型：通用卡片 | 格式：背景[#fff] 圆角[12px] 阴影 | 影响文件：list.html、batch_edit.html、inbound.html、设置页 */
 .card {
   background: #fff;
   padding: 16px;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
   margin-bottom: 16px;
   text-decoration: none;
   color: inherit;
 }
 
-/* 卡片悬停态（通用） */
+/* 类型：卡片 hover 态 | 格式：加深阴影 | 影响文件：通用卡片页面 */
 .card:hover {
-  box-shadow: 0 8px 22px rgba(0,0,0,0.12);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
 }
 
-/* 卡片头部（通用） */
+/* 类型：卡片头部布局 | 格式：左右对齐 flex | 影响文件：list.html、batch_edit.html、inbound.html 等 */
 .card-header {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-/* 卡片标题（通用） */
+/* 类型：卡片标题 | 格式：加粗[600] | 影响文件：多个页面卡片头部 */
 .card-title {
-  font-weight:600;
-  margin-bottom:8px;
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 
-/* 页面标题（通用，多个页面使用） */
+/* 类型：页面标题 | 格式：间距[12px/16px] | 影响文件：list.html、batch_edit.html、inbound.html */
 .page-title {
-  margin:12px 0 16px;
+  margin: 12px 0 16px;
 }
 
-/* 页面底部信息（通用） */
+/* 类型：页脚文字 | 格式：文字[14px #666] 居中 | 影响文件：base.html */
 .footer {
   text-align: center;
   color: #666;
   padding: 20px 0 40px;
 }
 
+/* 类型：顶部导航层级修复 | 格式：z-index[1000] | 影响文件：list.html 等有悬浮元素的页面 */
+header,
+.topbar,
+.navbar {
+  position: relative;
+  z-index: 1000;
+}
 
-/* 标题通用间距（通用） */
-h1, h2, h3 { margin: 8px 0 12px; }
-/* 段落行高（通用） */
-p { line-height: 1.7; }
+/* ========================= 表单与输入控件 ========================= */
+
+/* ========================= 创建拍卖会（create.html） ========================= */
+
+/* 创建拍卖会表单整体容器 */
+.form-box {
+  max-width: 720px;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 20px 24px 24px;
+  border-radius: 6px;
+}
+
+/* 表单标题 */
+.form-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+/* 单行表单布局 */
+.form-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* 左侧 label */
+.form-row label {
+  width: 140px;
+  text-align: right;
+  margin-right: 10px;
+}
+
+/* create 页面输入框（不影响全局） */
+.form-row input[type="text"],
+.form-row input[type="number"],
+.form-row input[type="date"],
+.form-row select {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* 行内说明文字 */
+.inline-note {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+/* 百分比输入 */
+.percent-input {
+  width: 120px;
+}
+
+/* 数值输入 */
+.number-input {
+  width: 160px;
+}
+
+/* 快速按钮组 */
+.btn-group {
+  margin-left: 8px;
+}
+
+/* 小按钮（仅 create 页面使用） */
+.btn-mini {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #999;
+  background: #fafafa;
+  cursor: pointer;
+  margin-right: 4px;
+}
+.btn-mini:hover {
+  background: #eee;
+}
+
+/* 图录费单选 */
+.catalog-radio {
+  margin-right: 12px;
+}
+
+/* 提交行 */
+.submit-row {
+  margin-top: 18px;
+  text-align: center;
+}
+
+/* create 主按钮（不污染全局 .btn.primary） */
+.btn-main {
+  padding: 6px 18px;
+  border-radius: 4px;
+  border: none;
+  background: #007bff;
+  color: #fff;
+  cursor: pointer;
+}
+.btn-main:hover {
+  background: #0064d6;
+}
+
+/* 提示信息 */
+#msg {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 13px;
+}
 
 
 
-/* 表单：纵向布局（inbound.html、list.html 的筛选弹窗等） */
+/* 类型：表单纵向布局 | 格式：列方向 flex / 间距[12px] | 影响文件：inbound.html、list.html 筛选弹窗等 */
 .form-vertical {
-  display:flex;
-  flex-direction:column;
-  gap:12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* 表单：行容器（inbound.html / list.html） */
+/* 类型：表单行容器 | 格式：上下间距[8px] | 影响文件：inbound.html、list.html */
 .form-vertical .row {
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  margin-bottom:8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-/* 表单：行内布局（inbound.html / list.html） */
+/* 类型：行内布局容器 | 格式：水平排列 flex | 影响文件：多处表单行内组合 */
 .row .inline {
-  display:flex;
-  align-items:center;
-  gap:8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-
-/* 输入框小尺寸变体（部分工具或弹窗使用） */
-.input.sm {
-  padding:6px 8px;
-  font-size:13px;
+/* 类型：通用输入/选择器 | 格式：高度[36px] 圆角[8px] | 影响文件：inbound.html、batch_edit.html、list.html（全局输入框样式） */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="tel"],
+select,
+textarea,
+.input,
+.form-control,
+.cat-select {
+  box-sizing: border-box;
+  height: var(--ctl-height-md);
+  padding: 0 var(--ctl-padding-x-md);
+  border: 1px solid #d1d5db;
+  border-radius: var(--ctl-radius-md);
+  background: #fff;
+  font-size: var(--font-md);
+  color: #111827;
 }
 
-/* 百分比输入容器（可能用于批量编辑） */
+/* 类型：通用输入小号变体 | 格式：高度[30px] 字号[13px] | 影响文件：工具条/弹窗等小控件 */
+.input.sm,
+.form-control.sm,
+input.sm,
+select.sm,
+textarea.sm {
+  height: var(--ctl-height-sm);
+  padding: 0 var(--ctl-padding-x-sm);
+  border-radius: var(--ctl-radius-sm);
+  font-size: var(--font-sm);
+}
+
+/* 类型：输入聚焦态 | 格式：边框蓝色/淡蓝外阴影 | 影响文件：全页面输入框 */
+.input:focus,
+.cat-select:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  outline: none;
+}
+
+/* 类型：百分比输入容器 | 格式：水平排列 flex | 影响文件：batch_edit.html */
 .input-percent {
-  display:flex;
-  align-items:center;
-  gap:6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* 百分比输入中的单位标注（batch_edit） */
+/* 类型：百分比输入单位文字 | 格式：文字[14px #555] | 影响文件：batch_edit.html */
 .input-percent > span {
-  color:#555;
+  color: #555;
 }
 
-
-
-/* 按钮：基础样式（所有页面通用） */
-.btn {
-  display:inline-block;
-  padding:8px 12px;
-  border:1px solid #e5e7eb;
-  border-radius:8px;
-  background:#fff;
-  cursor:pointer;
+/* 类型：非法输入高亮 | 格式：红色边框/浅红阴影 | 影响文件：inbound.html、batch_edit.html、list.html */
+.invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2) !important;
 }
 
-/* 按钮：主按钮（所有页面通用） */
+/* ========================= 按钮与按钮区域 ========================= */
+
+/* 类型：通用按钮基础 | 格式：高度[36px] 圆角[8px] 背景[#fff] | 影响文件：list.html、batch_edit.html、inbound.html 等 */
+.btn,
+.btn:link,
+.btn:visited,
+label.btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: var(--ctl-height-md);
+  padding: 0 var(--ctl-padding-x-md);
+  border-radius: var(--ctl-radius-md);
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  font-family: inherit;
+  font-size: var(--font-md);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.02s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+/* 类型：通用按钮 hover/active/focus | 格式：微缩放/微变暗/蓝色外框 | 影响文件：所有按钮 */
+.btn:hover,
+label.btn:hover {
+  filter: brightness(0.98);
+}
+.btn:active,
+label.btn:active {
+  transform: translateY(0.5px);
+}
+.btn:focus-visible,
+label.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* 类型：主按钮样式 | 格式：背景[#2563eb] 文字[#fff] | 影响文件：全页面主操作按钮 */
 .btn.primary {
-  background:#2563eb;   
-  color:#fff;
-  border-color:#2563eb;
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
 }
 
-/* 按钮：小尺寸（清空/关闭等按钮，list.html / inbound.html 使用） */
+/* 类型：小号按钮 | 格式：高度[30px] 字号[13px] | 影响文件：工具条、弹窗、批量操作等 */
 .btn.sm {
-  padding:4px 8px;
-  font-size:12px;
+  height: var(--ctl-height-sm);
+  padding: 0 var(--ctl-padding-x-sm);
+  border-radius: var(--ctl-radius-sm);
+  font-size: var(--font-sm);
 }
 
+/* 类型：小号按钮特化 | 格式：高度[32px] 最小宽度[64px] | 影响文件：list.html、inbound.html seller-multi 面板按钮 */
+.btn.sm {
+  min-width: 64px;
+}
 
+/* 类型：按钮切换样式 | 格式：带复选框对齐 | 影响文件：list.html 顶部工具条等 */
+.btn.toggle input[type="checkbox"] {
+  margin-right: 6px;
+  width: 16px;
+  height: 16px;
+}
 
-/* Excel风格表格（list.html 使用） */
+/* 类型：顶部按钮区域 | 格式：换行 flex 排布 | 影响文件：list.html、batch_edit.html */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  justify-content: center;
+}
+
+/* 类型：删除类按钮 | 格式：红边红字 | 影响文件：list.html、batch_edit.html */
+.btn.del {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.btn.del:hover {
+  background: #fee2e2;
+}
+
+/* 类型：左侧浮动保存按钮 | 格式：固定定位 / 阴影 | 影响文件：batch_edit.html */
+.save-fab {
+  position: fixed;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 9998;
+  display: none;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+/* 类型：顶部提示条 | 格式：绿色背景条 | 影响文件：batch_edit.html、list.html */
+.top-toast {
+  position: fixed;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: none;
+  background: #10b981;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 类型：通用工具类-隐藏元素 | 格式：display:none | 影响文件：batch_edit.html */
+.u-hidden{ display:none !important; }
+
+/* ========================= 表格与列表布局 ========================= */
+
+/* 类型：Excel 风格表格 | 格式：边框线条 / 宽度[100%] | 影响文件：list.html */
 .table.excel {
-  border:1px solid #cbd5e1;
+  border: 1px solid #cbd5e1;
   border-collapse: collapse;
   width: 100%;
 }
 
-/* Excel风格表格单元格（list.html） */
-.table.excel th, .table.excel td {
-  border:1px solid #cbd5e1;
-  padding:10px 14px;       
+/* 类型：Excel 表格单元格 | 格式：padding[10px 14px] 边框 | 影响文件：list.html */
+.table.excel th,
+.table.excel td {
+  border: 1px solid #cbd5e1;
+  padding: 10px 14px;
 }
 
-/* Excel风格表头（list.html） */
+/* 类型：Excel 表头 | 格式：背景[#f3f4f6] 加粗 | 影响文件：list.html */
 .table.excel thead th {
-  background:#f3f4f6;
-  font-weight:600;
+  background: #f3f4f6;
+  font-weight: 600;
 }
 
-/* 表格单元格（通用：list.html / batch_edit.html） */
+/* 类型：表格基础单元格 nowrap | 格式：white-space:nowrap | 影响文件：list.html、batch_edit.html */
 .table td {
-  white-space:nowrap;      
+  white-space: nowrap;
 }
 
-
-/* 表格单元格：允许换行（通用） */
-.table td[style*="white-space:normal"] {
-  white-space:normal;
+/* 类型：横向滚动容器 | 格式：overflow-x 自动 | 影响文件：list.html */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 
-
-
-/* 缩略图外容器（list.html 图片列） */
-.thumb-wrap {
-  width:64px;
-  height:64px;
-  border:1px solid #e5e7eb;
-  border-radius:8px;
-  overflow:hidden;
-  background:#fff;
-  cursor:pointer;
+/* 类型：横向滚动内部表格最小宽度 | 格式：min-width 980/820 | 影响文件：list.html */
+.table-scroll table {
+  min-width: 980px;
 }
 
-/* 缩略图图片（list.html 图片列） */
-.thumb {
-  width:100%;
-  height:100%;
-  object-fit:cover;    
-  aspect-ratio:1/1;    
-  display:block;
+/* 类型：<=768px 时缩小表格最小宽度 | 格式：min-width[820px] | 影响文件：list.html（平板/小屏） */
+@media (max-width: 768px) {
+  .table-scroll table {
+    min-width: 820px;
+  }
 }
 
-
-.table th.col-code,
-.table td.col-code {
-  width: 120px;
+/* 类型：列表表格外容器 | 格式：滚动/圆角/白底 | 影响文件：list.html、batch_edit.html */
+.table-wrap {
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  position: relative;
 }
-/* 表格首列居中（list.html） */
-.table.batch-fixed thead th:nth-child(1),
-.table.batch-fixed tbody td:nth-child(1){
+
+/* 类型：表格线框布局 | 格式：table-layout fixed / 边框线 | 影响文件：list.html */
+.table-wrap table {
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* 类型：表格单元格边框/背景 | 格式：白底/右下边框 | 影响文件：list.html */
+.table-wrap th,
+.table-wrap td {
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* 类型：表格表头样式 | 格式：背景[#f3f4f6] 加粗 | 影响文件：list.html */
+.table-wrap thead th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+/* 类型：表格首列左边线 | 格式：第一列左边边框 | 影响文件：list.html */
+.table-wrap tr > :first-child {
+  border-left: 1px solid #e5e7eb;
+}
+
+/* 类型：批次编辑-列宽（colgroup） | 格式：固定 px 宽度 | 影响文件：batch_edit.html */
+.table.batch-fixed col.col-code{ width:120px; }
+.table.batch-fixed col.col-img { width:120px; }
+.table.batch-fixed col.col-loc { width:90px; }
+.table.batch-fixed col.col-box { width:70px; }
+.table.batch-fixed col.col-cat { width:120px; }
+.table.batch-fixed col.col-name{ width:220px; }
+.table.batch-fixed col.col-size{ width:190px; }
+.table.batch-fixed col.col-sp  { width:120px; }
+.table.batch-fixed col.col-rp  { width:120px; }
+.table.batch-fixed col.col-acc { width:180px; }
+.table.batch-fixed col.col-act { width:120px; }
+
+/* 类型：固定列宽表格布局 | 格式：宽度[max-content/min-width:100%] | 影响文件：list.html、batch_edit.html */
+.table.batch-fixed {
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* 类型：固定列表头与单元格 | 格式：高度[42px] 溢出省略 | 影响文件：list.html、batch_edit.html */
+.table.batch-fixed th,
+.table.batch-fixed td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 42px;
+  vertical-align: middle;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 8px;
+  background: #fff;
+  text-align: center;
+}
+
+/* 类型：固定列表头 sticky | 格式：position:sticky top:0 | 影响文件：list.html、batch_edit.html */
+.table.batch-fixed thead th {
+  background: #f8fafc;
+  font-weight: 600;
+  height: 40px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+/* 类型：首列居中辅助类 | 格式：text-align:center | 影响文件：list.html、batch_edit.html */
+.table.batch-fixed thead th.th-center,
+.table.batch-fixed tbody td:nth-child(1),
+.th-center,
+.td-center {
   text-align: center;
 }
 
 
-/* 表格列宽：图片列（list.html） */
+
+/* 类型：冻结首列（选择列） | 格式：sticky 左侧列 | 影响文件：list.html */
+th.col-select-left,
+td.col-select-left {
+  position: static;
+  left: auto;
+  z-index: auto;
+}
+.table-freeze-on th.col-select-left,
+.table-freeze-on td.col-select-left {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 40;
+  border-right: 1px solid #e5e7eb;
+}
+.table-freeze-on tbody td.col-select-left {
+  z-index: 25;
+}
+
+/* 类型：冻结列背景与定位 | 格式：sticky 冻结列 | 影响文件：list.html、batch_edit.html */
+.freeze-col { background: #fff; }
+
+/* 关键：强制 sticky + 建立稳定层级，避免被后续列“盖住”造成串位视觉 */
+.table-freeze-on .freeze-col{
+  position: sticky !important;
+  left: 0;
+  background: #fff;
+  z-index: 60;
+}
+
+/* 类型：冻结列 z-index 修正 | 格式：thead/tbody 分层更高 | 影响文件：list.html、batch_edit.html */
+.table-freeze-on thead th.freeze-1,
+.table-freeze-on thead th.freeze-2,
+.table-freeze-on thead th.col-select-left{
+  z-index: 500;
+}
+
+.table-freeze-on tbody td.freeze-1,
+.table-freeze-on tbody td.freeze-2,
+.table-freeze-on tbody td.col-select-left{
+  z-index: 400;
+}
+
+/* 类型：冻结列右侧分隔线 | 格式：阴影/边线提示分隔 | 影响文件：list.html、batch_edit.html */
+.table-freeze-on .freeze-2{
+  box-shadow: 1px 0 0 #e5e7eb;
+}
+
+
+/* 类型：选中行高亮 | 格式：背景浅蓝 | 影响文件：list.html */
+#tbody tr.row-checked > td,
+#tbody tr.row-checked > th {
+  background: #eef6ff !important;
+}
+.table-freeze-on #tbody tr.row-checked > td.freeze-col,
+#tbody tr.row-checked > td.col-select-left {
+  background: #eaf3ff !important;
+}
+
+/* 类型：列宽控制类 | 格式：固定宽度 px | 影响文件：list.html */
+.table th.col-code,
+.table td.col-code { width: var(--w-code); }
 .table th.col-image,
-.table td.col-image {
-  width: 120px;
-}
-
-
-/* 表格列宽：位置列（list.html） */
+.table td.col-image { width: var(--w-img); }
 .table th.col-location,
-.table td.col-location {
-  width: 120px;
-}
-
-
-/* 表格列宽：箱号列（list.html） */
+.table td.col-location { width: 120px; }
 .table th.col-box,
-.table td.col-box {
-  width: 140px;
-}
-
-
-/* 表格列宽：类别列（list.html） */
+.table td.col-box { width: 140px; }
 .table th.col-cat,
-.table td.col-cat {
-  width: 100px;
-}
-
-
-/* 表格列宽：名称列（list.html） */
+.table td.col-cat { width: var(--w-cat); }
 .table th.col-name,
-.table td.col-name {
-  width: 260px;
-}
-
-
-/* 表格列宽：尺寸列（list.html） */
+.table td.col-name { width: var(--w-name); }
 .table th.col-size,
-.table td.col-size {
-  width: 180px;
-}
-
-
-/* 表格列宽：附属品列（list.html） */
+.table td.col-size { width: var(--w-size); }
 .table th.col-acc,
-.table td.col-acc {
-  width: 180px;
-}
-
-
-/* 表格列宽：操作列（list.html） */
+.table td.col-acc { width: var(--w-acc); }
 .table th.col-action,
-.table td.col-action {
-  width: 120px;
+.table td.col-action { width: 120px; }
+
+/* 类型：允许换行单元格 | 格式：white-space:normal | 影响文件：list.html、batch_edit.html */
+.table td[style*="white-space:normal"] {
+  white-space: normal;
 }
 
+/* 类型：图片单元格 | 格式：居中展示图片 | 影响文件：list.html、batch_edit.html */
+.td-img {
+  text-align: center;
+}
+.td-img img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  display: inline-block;
+}
+.td-img img.thumb {
+  width: 100%;
+  height: auto;
+  max-height: 96px;
+  object-fit: contain;
+  display: block;
+  cursor: zoom-in;
+  user-select: none;
+}
 
-/* 表格单元格：附属品单元（list.html / batch_edit.html） */
-.table.batch-fixed td.acc-cell {
-  overflow: visible;
+/* ========================= 缩略图 / 图片上传区域 ========================= */
+
+/* 类型：批次编辑图片上传外容器 | 格式：垂直布局/不裁切 | 影响文件：templates/inventory/batch_edit.html */
+.thumb-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 96px;          /* 给 90x90 的 drop 留边 */
+  height: auto;
+  overflow: visible;    /* 关键：不要裁切 drop/按钮 */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: default;
   position: relative;
 }
 
-
-/* 附属品下拉面板（list.html / batch_edit.html） */
-.table.batch-fixed td.acc-cell .multi .multi-panel {
+/* 类型：缩略图图片 | 格式：cover 填充 / 等比 1:1 | 影响文件：list.html 图片列 */
+.thumb {
   width: 100%;
-  min-width: 100%;
-  max-width: 100%;
+  height: 100%;
+  object-fit: cover;
+  aspect-ratio: 1 / 1;
+  display: block;
 }
 
-
-/* 横向滚动容器（list.html） */
-.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
-/* 横向滚动内部表格（list.html） */
-.table-scroll table{min-width:980px}
-
-
-/* details/summary 折叠容器（多页面通用） */
-details{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:10px 0;overflow:hidden}
-/* 折叠标题 summary（多页面通用） */
-summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
-/* 去除 summary 默认三角标记（通用） */
-summary::-webkit-details-marker{display:none}
-/* 折叠箭头 icon（通用） */
-.arrow{transition:transform .2s}
-/* 折叠箭头展开态（通用） */
-details[open] .arrow{transform:rotate(90deg)}
-
-/* 响应式：<=768px 平板/小屏通用（多页面） */
-@media (max-width:768px){
-  .table-scroll table{min-width:820px}
+/* 类型：图片拖放区域 | 格式：虚线边框 90x90 | 影响文件：batch_edit.html */
+.drop {
+  width: 90px;
+  height: 90px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+.drop.dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+.drop img.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.drop .hint {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.drop input[type="file"] {
+  display: none;
 }
 
-/* 响应式：<=640px 手机端通用（多页面） */
-@media (max-width: 640px){
-  .hide-mobile{ display: none !important; }
+/* 类型：批次编辑清除图片按钮 | 格式：桌面文字/手机图标 | 影响文件：batch_edit.html */
+[data-clear-img] {
+  margin-top: 6px;
+}
+[data-clear-img] .clear-icon {
+  display: none;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+}
+[data-clear-img] .clear-text {
+  display: inline;
+}
+@media (max-width: 768px) {
+  [data-clear-img] .clear-icon { display: inline; }
+  [data-clear-img] .clear-text { display: none; }
 }
 
+/* ========================= 附属品选择 / 多选控件 ========================= */
 
-
-
-
-
-
-/* 内容居中容器（batch_edit.html、list.html、inbound.html 共用） */
-.center-wrap{ max-width: 1400px; margin: 24px auto; }
-.card{ padding:16px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
-
-/* 顶部按钮区（batch_edit.html / list.html） */
-.btn-row{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; justify-content:center; }
-.btn, .btn:link, .btn:visited, label.btn{
-  height:36px; line-height:34px; padding:0 14px;
-  border:1px solid #d1d5db; border-radius:10px; background:#fff;
-  color:#111827; font-family:inherit; font-size:14px; font-weight:500;
-  cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center;
-  transition: transform .02s ease, filter .15s ease, box-shadow .15s ease;
-}
-.btn:hover, label.btn:hover{ filter:brightness(0.98); }
-.btn:active, label.btn:active{ transform: translateY(0.5px); }
-.btn:focus-visible, label.btn:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
-.btn.primary{ border-color:#2563eb; background:#2563eb; color:#fff !important; }
-.btn.sm{ height:28px; line-height:26px; padding:0 10px; border-radius:8px; font-size:13px; }
-.btn.toggle input[type="checkbox"]{ margin-right:6px; width:16px; height:16px; }
-
-/* 左侧浮动保存按钮（batch_edit.html） */
-.save-fab{ position:fixed; left:12px; top:50%; transform:translateY(-50%); z-index:9998; display:none; box-shadow:0 8px 22px rgba(0,0,0,.18); }
-
-/* 顶部绿色提示条（batch_edit.html / list.html） */
-.top-toast{
-  position:fixed; left:50%; top:10px; transform:translateX(-50%);
-  z-index:10000; display:none; background:#10b981; color:#fff;
-  padding:8px 14px; border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,.15);
-  font-size:14px; font-weight:600;
+/* 类型：附属品单元格 | 格式：溢出可见/相对定位 | 影响文件：list.html、batch_edit.html */
+td.img-cell,
+td.acc-cell {
+  overflow: visible !important;
+  position: relative !important;
 }
 
-/* 表格外部容器（list.html / batch_edit.html） */
-.table-wrap{ overflow:auto; border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
-/* 固定列宽表格布局（list.html / batch_edit.html） */
-.table.batch-fixed { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
-/* 固定列表格单元格（list.html / batch_edit.html） */
-.table.batch-fixed th, .table.batch-fixed td{
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  height: 42px; vertical-align: middle; border-bottom: 1px solid #e5e7eb;
-  padding: 0 8px; background: #fff; text-align:center;
-}
-/* 固定列表头（list.html / batch_edit.html） */
-.table.batch-fixed thead th{ background: #f8fafc; font-weight: 600; height: 40px; }
-/* 固定列首列居中（list.html / batch_edit.html） */
-.table.batch-fixed thead th.th-center,
-.table.batch-fixed tbody td:nth-child(1){ text-align: center; }
-
-/* 通用输入框/选择器（inbound.html、batch_edit.html、list.html） */
-.input, .cat-select{
-  width: 100%; height: 34px; border:1px solid #d1d5db; border-radius:8px; padding:0 8px; box-sizing:border-box;
-}
-/* 通用输入聚焦态（所有页面） */
-.input:focus, .cat-select:focus{ border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15); outline:none; }
-/* 分类选择下拉（list.html / batch_edit.html） */
-.cat-select{ text-align:center; text-align-last:center; }
-/* 输入非法状态标记（多页面通用） */
-.invalid{ border-color:#ef4444 !important; box-shadow:0 0 0 1px rgba(239,68,68,.2) !important; }
-
-/* 表格图片单元（batch_edit.html）
-   注意：冻结列需要 position: sticky，这里不能用 relative !important 覆盖 */
-td.img-cell{ overflow: visible !important; position: relative; }
-
-/* 当开启冻结时，强制让图片列也能 sticky（确保与 list 一致） */
-.table-freeze-on td.img-cell.freeze-col{ position: sticky !important; }
-
-.thumb-wrap{ position: relative; width: 100%; display:flex; justify-content:center; }
-/* 图片上传拖放区域（batch_edit.html） */
-.drop{
-  width: 90px; height: 90px; border:1px dashed #cbd5e1; border-radius:8px; background:#fff;
-  display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; cursor:pointer;
-}
-.drop.dragover{ border-color:#2563eb; background:#eff6ff; }
-.drop img.thumb{ width:100%; height:100%; object-fit:cover; }
-.drop .hint{ position:absolute; bottom:4px; right:6px; font-size:12px; color:#6b7280; }
-.drop input[type=file]{ display:none; }
-
-/* 操作按钮组（list.html / batch_edit.html） */
-.actions{ display:flex; align-items:center; justify-content:center; gap:8px; }
-.btn.del{ border-color:#ef4444; color:#ef4444; }
-.btn.del:hover{ background:#fee2e2; }
-
-/* 附属品单元格（list.html / batch_edit.html） */
-td.acc-cell{ overflow: visible !important; position: relative !important; }
-/* 附属品多选控件容器（list.html / batch_edit.html） */
-td.acc-cell .multi{ position: relative; }
-/* 附属品多选显示条（list.html / batch_edit.html） */
-td.acc-cell .multi .multi-display{
-  display:flex; align-items:center; justify-content:space-between;
-  border:1px solid #d1d5db; border-radius:8px;
-  padding:0 8px;                 
-  height:34px; min-height:34px;  
-  background:#fff; cursor:pointer;
-  box-sizing:border-box;         
-  font-size:14px;                
-  font-family:inherit;           
-  line-height:normal;
+/* 类型：通用多选容器 | 格式：相对定位 | 影响文件：list.html、batch_edit.html */
+td.acc-cell .multi {
+  position: relative;
 }
 
-
-
-td.acc-cell .multi .multi-display .placeholder{ color:#9ca3af; font-size:14px; font-family:inherit;}
-
-
-
-/* 入库页：显示条等宽/box-sizing 保险（inbound.html） */
-.page-inbound .seller-multi .multi-display{
-  height: var(--inbound-input-height); 
-  padding: 0 10px;                     
-  font-size: 14px;                     
-  color: #111827;
+/* 类型：通用多选显示条 | 格式：高度[34px] 圆角[8px] | 影响文件：list.html、batch_edit.html */
+td.acc-cell .multi .multi-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0 8px;
+  height: 34px;
+  min-height: 34px;
+  background: #fff;
+  cursor: pointer;
   box-sizing: border-box;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: normal;
 }
-
-
-.page-inbound .seller-multi .multi-display .placeholder{
-  color: #9ca3af;       
-  font-size: 14px;      
-  font-weight: 400;
-}
-
-
-.page-inbound .input::placeholder{
+td.acc-cell .multi .multi-display .placeholder {
   color: #9ca3af;
   font-size: 14px;
-  opacity: 1;           
+  font-family: inherit;
 }
 
-td.acc-cell .multi .multi-display .placeholder{
-  color:#9ca3af;
-  font-size:14px;
-  font-family:inherit;
+/* 类型：通用多选下拉面板 | 格式：白底阴影/最大高度260px | 影响文件：list.html、batch_edit.html */
+td.acc-cell .multi .multi-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 3000;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-top: 6px;
+  max-height: 260px;
+  overflow: auto;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: none;
+}
+td.acc-cell .multi.open .multi-panel {
+  display: block;
+}
+td.acc-cell .multi .opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+td.acc-cell .multi .opt:hover {
+  background: #f9fafb;
+}
+td.acc-cell .multi .panel-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 8px;
+  border-top: 1px solid #f3f4f6;
+}
+td.acc-cell .multi .btn.sm {
+  padding: 4px 8px;
+  border-radius: 6px;
 }
 
+/* 类型：附属品选择（老版 acc-select） | 格式：chip 标签集合 | 影响文件：list.html */
+.acc-select {
+  position: relative;
+  min-width: 160px;
+}
+.acc-select .acc-view {
+  min-height: 30px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  padding-right: 18px;
+}
+.acc-select .acc-view .muted {
+  color: #9ca3af;
+}
+.acc-select .acc-view::after {
+  content: "▾";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.6;
+}
+.acc-select .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  font-size: 12px;
+}
+.acc-select .chip i {
+  font-style: normal;
+  cursor: pointer;
+  color: #6b7280;
+}
+.acc-select .acc-dd {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 2000;
+  display: none;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  min-width: 200px;
+}
+.acc-select .dd-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  margin: 4px 0;
+}
+.acc-select .dd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
 
-/* 附属品下拉面板（list.html / batch_edit.html） */
-td.acc-cell .multi .multi-panel{
-  position:absolute; top:100%; left:0; z-index:3000; width:100%;
-  border:1px solid #e5e7eb; border-radius:8px; margin-top:6px;
-  max-height:260px; overflow:auto; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.12);
-  display:none;
+/* 类型：chips 标签集合 | 格式：小圆角标签 | 影响文件：list.html（材质、标签等） */
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 28px;
 }
-td.acc-cell .multi.open .multi-panel{ display:block; }
-td.acc-cell .multi .opt{ display:flex; align-items:center; gap:8px; padding:6px 10px; }
-td.acc-cell .multi .opt:hover{ background:#f9fafb; }
-td.acc-cell .multi .panel-actions{ display:flex; gap:8px; justify-content:flex-end; padding:8px; border-top:1px solid #f3f4f6; }
-td.acc-cell .multi .btn.sm{ padding:4px 8px; border-radius:6px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #f9fafb;
+  font-size: 12px;
+}
+.chip i {
+  font-style: normal;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.chip i:hover {
+  opacity: 1;
+}
+
+/* 类型：材质快速添加浮窗 | 格式：固定定位弹窗 | 影响文件：list.html */
+.mat-adder {
+  position: fixed;
+  z-index: 3000;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 10px;
+}
+.mat-adder .mat-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* ========================= 图片预览浮窗 ========================= */
+
+/* 类型：大图预览容器 | 格式：固定定位/宽380px | 影响文件：list.html、batch_edit.html */
+.img-preview {
+  position: fixed;
+  z-index: 9999;
+  width: 380px;
+  max-width: 40vw;
+  display: none;
+}
+
+/* 类型：图片预览浮窗-默认位置 | 格式：left/top 固定 | 影响文件：batch_edit.html、list.html */
+#img-preview{ left:24px; top:120px; }
 
 
-/* 图片预览浮窗（list.html / batch_edit.html） */
-.img-preview{ position: fixed; z-index: 9999; width: 380px; max-width: 40vw; display:none; }
-.img-preview .img-preview-inner{
-  border:1px solid #e5e7eb; border-radius:10px; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.18);
-  overflow:hidden;
+/* 类型：大图预览内层卡片 | 格式：白底圆角阴影 | 影响文件：list.html、batch_edit.html */
+.img-preview .img-preview-inner {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
 }
-.preview-header{
-  display:flex; align-items:center; justify-content:space-between;
-  height:28px; padding:0 6px; border-bottom:1px solid #f3f4f6;
-  background:#f9fafb; cursor:move; user-select:none; position:sticky; top:0; z-index:1;
+
+/* 类型：预览头部栏 | 格式：可拖动 header | 影响文件：list.html、batch_edit.html */
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 6px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #f9fafb;
+  cursor: move;
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
-.drag-handle{ font-size:16px; color:#6b7280; padding:0 6px; }
-.preview-hint{ font-size:12px; color:#6b7280; }
-.preview-close{
-  width:24px; height:24px; border-radius:50%; border:1px solid #e5e7eb; background:#fff; cursor:pointer; line-height:22px; font-size:16px;
-  box-shadow:0 4px 16px rgba(0,0,0,.08);
+.drag-handle {
+  font-size: 16px;
+  color: #6b7280;
+  padding: 0 6px;
 }
-.preview-body{
-  position:relative; width:100%; height:70vh; background:#fff; overflow:hidden;
-  display:flex; align-items:center; justify-content:center;
-  touch-action:none; user-select:none;
+.preview-hint {
+  font-size: 12px;
+  color: #6b7280;
+}
+.preview-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  line-height: 22px;
+  font-size: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* 类型：预览主体区域 | 格式：高度[70vh] 居中显示 | 影响文件：list.html、batch_edit.html */
+.preview-body {
+  position: relative;
+  width: 100%;
+  height: 70vh;
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  user-select: none;
   cursor: default;
 }
-.preview-body *, .preview-body.panning *, .preview-body.can-pan *{ cursor: inherit; }
-.preview-body.can-pan{ cursor: grab; }
-.preview-body.panning{ cursor: grabbing !important; }
-
-#img-preview-img{
-  max-width:100%; max-height:100%; width:auto; height:auto;
-  object-fit:contain; display:block;
-  transform-origin: 0 0; will-change: transform;
-  user-drag: none; -webkit-user-drag: none; -webkit-user-select:none;
+.preview-body *,
+.preview-body.panning *,
+.preview-body.can-pan * {
+  cursor: inherit;
 }
-.img-preview .preview-actions{ margin:6px 8px 8px; text-align:right; }
-.img-preview .preview-actions a{ font-size:13px; color:#2563eb; text-decoration: none; }
-.img-preview .preview-actions a:hover{ text-decoration: underline; }
-
-
-
-
-
-
-  
-  .table-wrap{
-    overflow-x: auto;       
-    overflow-y: auto;
-    border:1px solid #e5e7eb; border-radius:12px; background:#fff;
-  }
-  
-  .table.batch-fixed{
-    table-layout: fixed;
-    width: max-content;     
-    min-width: 100%;        
-    border-collapse: separate; border-spacing: 0;
-  }
-  .table.batch-fixed th, .table.batch-fixed td{
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    height: 42px; vertical-align: middle; border-bottom: 1px solid #e5e7eb;
-    padding: 0 8px; background: #fff; text-align:center;
-  }
-  .table.batch-fixed thead th{
-    background:#f8fafc; position: sticky; top: 0; z-index: 1;
-  }
-
-
-
-
-/* 列表列头筛选按钮（list.html） */
-.th-filter{ margin-left:6px; padding:0 6px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer; }
-/* 筛选弹窗（list.html） */
-.filter-pop{
-  position:absolute; z-index:50; background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:10px; box-shadow:0 8px 24px rgba(0,0,0,.12);
+.preview-body.can-pan {
+  cursor: grab;
 }
-/* 筛选弹窗：行（list.html） */
-.filter-pop .row{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
-/* 筛选弹窗：输入（list.html） */
-.filter-pop input{ border:1px solid #e5e7eb; border-radius:6px; padding:6px 8px; }
-/* 筛选弹窗：操作按钮区（list.html） */
-.filter-pop .actions{ display:flex; gap:8px; justify-content:flex-end; }
+.preview-body.panning {
+  cursor: grabbing !important;
+}
 
+/* 类型：预览图片 | 格式：contain 缩放 | 影响文件：list.html、batch_edit.html */
+#img-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  transform-origin: 0 0;
+  will-change: transform;
+  user-drag: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+}
 
+/* 类型：预览底部操作区 | 格式：右对齐文字链接 | 影响文件：list.html、batch_edit.html */
+.img-preview .preview-actions {
+  margin: 6px 8px 8px;
+  text-align: right;
+}
+.img-preview .preview-actions a {
+  font-size: 13px;
+  color: #2563eb;
+  text-decoration: none;
+}
+.img-preview .preview-actions a:hover {
+  text-decoration: underline;
+}
 
+/* ========================= 顶部筛选工具条 ========================= */
 
-  
-  :root{
-    --w-edit:        60px;   
-    --w-code:       120px;   
-    --w-img:        100px;   
-    --w-auction:     72px;   
-    --w-locbox:     150px;   
-    --w-cat:        120px;   
-    --w-name:       260px;   
-    --w-seller:     160px;   
-    --w-size:       140px;   
-    --w-sp:          90px;   
-    --w-rp:          90px;   
-    --w-acc:        160px;   
-    --w-material:   140px;   
-    --w-seal:       120px;   
-    --w-insc:       180px;   
-    --w-desc:       320px;   
-    --w-author:     140px;   
-    --w-op:          90px;   
-  }
+/* 类型：列表顶部工具条布局 | 格式：grid + flex 行内控件 | 影响文件：list.html */
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 8px;
+  margin-bottom: 8px;
+}
+.toolbar .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolbar .spacer {
+  flex: 1;
+}
 
+/* 类型：工具条内输入与选择 | 格式：padding/圆角统一 | 影响文件：list.html */
+.toolbar input[type="text"],
+.toolbar input[type="date"],
+.toolbar select {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
 
-/* 左侧批量操作面板（list.html） */
-/* 左侧批量操作小窗口（list.html） */
-.bulk-panel{
+/* 类型：工具条按钮样式 | 格式：继承 .btn 基础 | 影响文件：list.html */
+.toolbar .btn {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.toolbar .btn.primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+.toolbar .btn.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 类型：工具条多选宽度 | 格式：固定宽[320px] | 影响文件：list.html */
+.toolbar .seller-multi {
+  width: 320px;
+}
+
+/* 类型：工具条搜索框宽度 | 格式：宽度[280~420px] | 影响文件：list.html */
+.toolbar #q {
+  min-width: 280px;
+  width: 420px;
+}
+
+/* 类型：结果统计文字 | 格式：弱化字色 | 影响文件：list.html */
+#result-stats {
+  color: #6b7280;
+}
+
+/* ========================= 批量操作面板 ========================= */
+
+/* 类型：左侧批量操作小窗口 | 格式：可拖动/可缩放浮窗 | 影响文件：list.html */
+.bulk-panel {
   position: fixed;
   left: 20px;
   top: 140px;
@@ -635,16 +1231,16 @@ td.acc-cell .multi .btn.sm{ padding:4px 8px; border-radius:6px; }
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 8px;
   z-index: 60;
-  font-size: 12px;          /* 字体变小 */
-  resize: both;             /* 允许缩放 */
-  overflow: auto;           /* 缩放后滚动 */
+  font-size: 12px;
+  resize: both;
+  overflow: auto;
 }
 
-/* 标题栏：作为拖动手柄，样式类似悬停大图 header */
-.bulk-panel .bulk-title{
+/* 类型：批量操作标题栏 | 格式：可拖动条 | 影响文件：list.html */
+.bulk-panel .bulk-title {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -653,480 +1249,430 @@ td.acc-cell .multi .btn.sm{ padding:4px 8px; border-radius:6px; }
   padding-bottom: 4px;
   margin-bottom: 6px;
   border-bottom: 1px solid #e5e7eb;
-  cursor: move;             /* 鼠标提示可拖动 */
+  cursor: move;
   user-select: none;
 }
 
-.bulk-panel .bulk-buttons{
+/* 类型：批量操作按钮区 | 格式：水平按钮排布 | 影响文件：list.html */
+.bulk-panel .bulk-buttons {
   display: flex;
   gap: 4px;
   margin-bottom: 6px;
 }
 
-.bulk-panel .bulk-field{
+/* 类型：批量操作字段行 | 格式：label + 输入 | 影响文件：list.html */
+.bulk-panel .bulk-field {
   display: flex;
   gap: 4px;
   align-items: center;
   margin: 6px 0;
 }
-
-.bulk-panel label{
+.bulk-panel label {
   white-space: nowrap;
 }
-
-.bulk-panel .input{
+.bulk-panel .input {
   flex: 1;
   min-width: 0;
 }
-
-.bulk-panel .btn.sm{
+.bulk-panel .btn.sm {
   font-size: 12px;
   padding: 0 8px;
   height: 26px;
 }
 
-/* 手机端仍然隐藏（避免遮挡） */
-@media (max-width: 960px){
-  .bulk-panel{ display:none; }
-}
-
-
-
-
-/* 列表通用头/单元格（list.html） */
-  .th, td{
-    border-bottom:1px solid #e5e7eb; padding:8px 10px; white-space:nowrap; background:#f8fafc;
+/* 类型：批量操作面板在手机端隐藏 | 格式：max-width:960px 隐藏 | 影响文件：list.html */
+@media (max-width: 960px) {
+  .bulk-panel {
+    display: none;
   }
-/* 列表表头样式（list.html） */
-  thead .th{ background:#f3f4f6; }
-/* 通用居中类（list.html） */
-  .th-center, .td-center{ text-align:center; }
-
-
-
-
-  
-/* 提升顶部导航层级（list.html 等） */
-  header, .topbar, .navbar {
-    position: relative;    
-    z-index: 1000;         
-  }
-
-
-
-
-  
-/* 表格线框设置（list.html） */
-  .table-wrap table { border-collapse: collapse; table-layout: fixed; }
-/* 表格单元格边框/布局（list.html） */
-  .table-wrap th, .table-wrap td {
-    border-right: 1px solid #e5e7eb;
-    border-bottom: 1px solid #e5e7eb;
-    background: #fff;      
-    vertical-align: middle;
-    white-space: nowrap;
-  }
-/* 表格表头（list.html） */
-  .table-wrap thead th {
-    background: #f3f4f6;
-    font-weight: 600;
-  }
-  .td-center { text-align:center; }
-/* 图片单元格（list.html） */
-.td-img { text-align:center; }
-/* 图片单元格内图片尺寸（list.html） */
-.td-img img {
-  width: 60px; height: 60px; object-fit: contain; display:inline-block;
 }
 
+/* ========================= 列头筛选弹窗 ========================= */
 
-  
-/* 表格首列左边线（list.html） */
-  .table-wrap tr > :first-child { border-left: 1px solid #e5e7eb; }
-
-
-
-
-/* 附属品选择控件（list.html） */
-.acc-select{ position:relative; min-width:160px; }
-/* 附属品选择-显示区域（list.html） */
-.acc-select .acc-view{ min-height:30px; border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; background:#fff; display:flex; flex-wrap:wrap; gap:6px; align-items:center; cursor:pointer;}
-.acc-select .acc-view .muted{ color:#9ca3af; }
-.acc-select .chip{ display:inline-flex; align-items:center; gap:6px; padding:2px 6px; border:1px solid #e5e7eb; border-radius:12px; background:#f9fafb; font-size:12px;}
-.acc-select .chip i{ font-style:normal; cursor:pointer; color:#6b7280; }
-/* 附属品选择-下拉面板（list.html） */
-.acc-select .acc-dd{ position:absolute; left:0; top:100%; z-index:60; display:none; background:#fff; border:1px solid #e5e7eb; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.12); padding:8px; min-width:200px; }
-.acc-select .dd-opt{ display:flex; align-items:center; gap:8px; white-space:nowrap; margin:4px 0; }
-.acc-select .dd-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px;}
-
-
-
-
-.img-preview{ position: fixed; z-index: 9999; width: 380px; max-width: 40vw; }
-.img-preview .img-preview-inner{
-  border:1px solid #e5e7eb; border-radius:10px; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.18);
-  overflow:hidden;
-}
-.preview-header{
-  display:flex; align-items:center; justify-content:space-between;
-  height:28px; padding:0 6px; border-bottom:1px solid #f3f4f6;
-  background:#f9fafb; cursor:move; user-select:none; position:sticky; top:0; z-index:1;
-}
-.drag-handle{ font-size:16px; color:#6b7280; padding:0 6px; }
-.preview-hint{ font-size:12px; color:#6b7280; }
-.preview-close{
-  width:24px; height:24px; border-radius:50%; border:1px solid #e5e7eb; background:#fff; cursor:pointer; line-height:22px; font-size:16px;
-  box-shadow:0 4px 16px rgba(0,0,0,.08);
-}
-.preview-body{
-  position:relative; width:100%; height:70vh; background:#fff; overflow:hidden;
-  display:flex; align-items:center; justify-content:center;
-  touch-action:none; user-select:none;
-  cursor: default;
-}
-.preview-body *, .preview-body.panning *, .preview-body.can-pan *{ cursor: inherit; }
-.preview-body.can-pan{ cursor: grab; }
-.preview-body.panning{ cursor: grabbing !important; }
-
-#img-preview-img{
-  max-width:100%; max-height:100%; width:auto; height:auto;
-  object-fit:contain; display:block;
-  transform-origin: 0 0; will-change: transform;
-  user-drag: none; -webkit-user-drag: none; -webkit-user-select:none;
-}
-.img-preview .preview-actions{ margin:6px 8px 8px; text-align:right; }
-.img-preview .preview-actions a{ font-size:13px; color:#2563eb; text-decoration: none; }
-.img-preview .preview-actions a:hover{ text-decoration: underline; }
-
-
-.td-img{ text-align:center; }
-.td-img img.thumb{
-  width:100%; height:auto; max-height:96px; object-fit:contain; display:block; cursor:zoom-in; user-select:none;
+/* 类型：列表列头筛选按钮 | 格式：小按钮 | 影响文件：list.html */
+.th-filter {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
 }
 
-
-
-
-.table.excel td.acc-cell { overflow: visible; position: relative; }
-.acc-select { position: relative; }
-.acc-select .acc-view { position: relative; padding-right: 18px; }
-/* 附属品选择-下拉箭头（list.html） */
-.acc-select .acc-view::after {
-  content: "▾";
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  pointer-events: none; opacity: .6;
+/* 类型：列表筛选弹窗 | 格式：绝对定位白底弹窗 | 影响文件：list.html */
+.filter-pop {
+  position: absolute;
+  z-index: 3000;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
-.acc-select .acc-dd { z-index: 2000; }
 
+/* 类型：筛选弹窗行布局 | 格式：flex 行 | 影响文件：list.html */
+.filter-pop .row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
 
-.filter-pop { z-index: 3000; }
+/* 类型：筛选弹窗输入框 | 格式：小输入 | 影响文件：list.html */
+.filter-pop input {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
 
+/* 类型：筛选弹窗按钮区 | 格式：右对齐 flex | 影响文件：list.html */
+.filter-pop .actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
+/* ========================= 自定义横向滚动条 ========================= */
 
-/* 标签集合 chips（list.html） */
-.chips{ display:flex; gap:6px; flex-wrap:wrap; min-height:28px; }
-/* 单个标签 chip（list.html） */
-.chip{ display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border:1px solid #e5e7eb; border-radius:999px; background:#f9fafb; font-size:12px; }
-.chip i{ font-style:normal; cursor:pointer; opacity:.7; }
-.chip i:hover{ opacity:1; }
-/* 材质快速添加弹窗（list.html） */
-.mat-adder{ position:fixed; z-index:3000; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); padding:10px; }
-.mat-adder .mat-row{ display:flex; gap:8px; margin-bottom:8px; }
-.muted{ color:#6b7280; font-size:12px; }
-
-
-/* 自定义横向滚动外层（list.html） */
-.scroll-wrap{
-  overflow-x: auto;
-  overflow-y: hidden;
+/* 类型：表格真实滚动层 | 格式：x/y 都滚动 + 隐藏原生滚动条 | 影响文件：list.html、batch_edit.html */
+.scroll-wrap {
+  width: 100%;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-/* 自定义横向滚动隐藏系统滚动条（list.html） */
-.scroll-wrap::-webkit-scrollbar{ height:0; }
+.scroll-wrap::-webkit-scrollbar {
+  height: 0;
+  width: 0;
+}
 
-/* 底部横向滚动条轨道（list.html 桌面端） */
+
+/* 类型：底部横向滚动条容器 | 格式：固定在底部 | 影响文件：list.html 桌面端 */
 .xbar{
-  position: fixed; left: 0; bottom: 8px; width: 100vw;
-  height: 12px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px;
-  display: none; z-index: 50; box-shadow: 0 2px 6px rgba(0,0,0,.04) inset;
-}
-/* 底部横向滚动条滑块（list.html 桌面端） */
-.xbar .xthumb{
-  height: 100%; width: 40px; background: #cbd5e1; border-radius: 8px; touch-action: none; will-change: transform;
-}
-/* 响应式：>=641px 显示自定义横向滚动条（list.html 桌面） */
-@media (min-width: 641px){
-  .xbar{ display:block; }
-  .xbar.disabled .xthumb{ width: 100% !important; background: #e5e7eb; pointer-events: none; }
-  .page-container{ padding-bottom: 28px !important; }
-}
-/* 响应式：<=640px 隐藏横向滚动条（list.html 手机） */
-@media (max-width: 640px){ .xbar{ display:none; } }
+  position: fixed;
+  bottom: 8px;
+  height: 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  display: none;
 
+  /* 关键：层级要高于冻结列（你冻结列 tbody 有 z-index:400） */
+  z-index: 6000;
 
-/* 冻结列背景（list.html when .table-freeze-on） */
-.freeze-col{ background:#fff; }
-/* 冻结列定位（list.html） */
-.table-freeze-on .freeze-col{ position: sticky; left: 0; z-index: 20; }
+  /* 给左右留边，避免贴边；宽度会再被 JS 动态对齐 card */
+  left: 12px;
+  right: 12px;
+  width: auto;
 
-/* 冻结表头（list.html） */
-.table-freeze-on thead th.freeze-col{
-  position: sticky;
-  top: 0;
-  z-index: 30;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) inset;
 }
 
-
-
-/* 选择列默认非粘性（list.html） */
-th.col-select-left, td.col-select-left{ position: static; left: auto; z-index: auto; }
-.table-freeze-on th.col-select-left,
-.table-freeze-on td.col-select-left{
-  position: sticky; left: 0; background:#fff; z-index: 40; border-right:1px solid #e5e7eb;
+.xbar .xthumb {
+  height: 100%;
+  width: 40px;
+  background: #cbd5e1;
+  border-radius: 8px;
+  touch-action: none;
+  will-change: transform;
 }
-.table-freeze-on tbody td.col-select-left{ z-index: 25; }
 
+/* 类型：桌面端显示自定义横向滚动条 | 格式：min-width:641px 显示 | 影响文件：list.html */
+@media (min-width: 641px) {
+  .xbar {
+    display: block;
+  }
+  .xbar.disabled .xthumb {
+    width: 100% !important;
+    background: #e5e7eb;
+    pointer-events: none;
+  }
+  .page-container {
+    padding: 12px;
+    padding-bottom: 28px !important;
+  }
+  /* 桌面端给底部横向条留空间，避免挡住表格最后一行 */
+  .center-wrap{
+    padding-bottom: 28px;
+  }
 
-/* 选中行高亮（list.html） */
-#tbody tr.row-checked > td,
-#tbody tr.row-checked > th{ background:#eef6ff !important; }
-#tbody tr.row-checked > td.col-select-left,
-/* 冻结列中的选中行高亮（list.html） */
-.table-freeze-on #tbody tr.row-checked > td.freeze-col{ background:#eaf3ff !important; }
-
-
-
-
-/* 层级修复：冻结表头在上（list.html） */
-.table.batch-fixed thead th{ z-index: 50; } 
-.table-freeze-on thead th.freeze-1,
-.table-freeze-on thead th.freeze-2,
-.table-freeze-on thead th.col-select-left{ z-index: 200; } 
-.table-freeze-on tbody td.freeze-1,
-.table-freeze-on tbody td.freeze-2,
-.table-freeze-on tbody td.col-select-left{ z-index: 120; } 
-
-
-/* 通用下拉选择组件（list.html 顶部筛选、多处；inbound.html 出品人单选） */
-.seller-multi{ position: relative; }
-/* 下拉组件-显示条（list.html / inbound.html） */
-.seller-multi .multi-display{
-  display:flex; align-items:center; gap:8px;
-  border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; background:#fff; cursor:pointer; min-height:34px;
 }
-/* 下拉组件-显示条占位（list.html / inbound.html） */
-.seller-multi .multi-display .placeholder{ color:#9ca3af; }
-/* 下拉组件-面板（list.html / inbound.html） */
-.seller-multi .multi-panel{
-  position:absolute; top:100%; left:0; z-index:3000; width:100%;
-  border:1px solid #e5e7eb; border-radius:8px; margin-top:6px;
-  max-height:320px; overflow:auto; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.12);
+
+/* 类型：手机端隐藏横向滚动条 | 格式：max-width:640px 隐藏 | 影响文件：list.html */
+@media (max-width: 640px) {
+  .xbar {
+    display: none;
+  }
 }
-/* 下拉组件-选项行（list.html / inbound.html） */
-.seller-multi .opt{ display:flex; align-items:center; gap:8px; padding:6px 10px; }
-.seller-multi .opt:hover{ background:#f9fafb; }
-/* 下拉组件-底部按钮区（list.html / inbound.html） */
-.seller-multi .panel-actions{ display:flex; gap:8px; justify-content:flex-end; padding:8px; border-top:1px solid #f3f4f6; }
 
+/* ========================= 通用折叠面板 details/summary ========================= */
 
+/* 类型：折叠容器 details | 格式：白底圆角 | 影响文件：多页面设置/说明区域 */
+details {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  margin: 10px 0;
+  overflow: hidden;
+}
 
-.seller-multi .multi-panel{
+/* 类型：折叠标题 summary | 格式：左右布局 flex | 影响文件：多页面 */
+summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 600;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 类型：隐藏默认三角标记 | 格式：::-webkit-details-marker 隐藏 | 影响文件：多页面 */
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 类型：折叠箭头 icon | 格式：旋转动画 | 影响文件：多页面 */
+.arrow {
+  transition: transform 0.2s;
+}
+details[open] .arrow {
+  transform: rotate(90deg);
+}
+
+/* 类型：手机端隐藏类 | 格式：display:none | 影响文件：多页面 */
+@media (max-width: 640px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* ========================= 出品人多选组件 seller-multi ========================= */
+
+/* 类型：出品人多选容器 | 格式：position:relative | 影响文件：list.html 顶部筛选、inbound.html 入库出品人 */
+.seller-multi {
+  position: relative;
+}
+
+/* 类型：出品人多选显示条 | 格式：白底圆角/占位文字 | 影响文件：list.html、inbound.html */
+.seller-multi .multi-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #fff;
+  cursor: pointer;
+  min-height: 34px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.seller-multi .multi-display .placeholder {
+  color: #9ca3af;
+}
+
+/* 类型：出品人多选下拉面板 | 格式：白底阴影/垂直布局 | 影响文件：list.html、inbound.html */
+.seller-multi .multi-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 3000;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-top: 6px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: none;
   flex-direction: column;
-  
-  max-height: 460px;
-  
+  max-height: var(--seller-panel-max-h-desktop);
   overflow: visible;
 }
 
-
-/* 下拉组件-滚动列表（list.html / inbound.html） */
-.seller-multi .opt-list{
+/* 类型：出品人面板头部 | 格式：搜索 + 按钮区 | 影响文件：inbound.html */
+.page-inbound .seller-multi .panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+}
+.page-inbound .seller-multi .panel-head .input {
   flex: 1 1 auto;
-  min-height: 180px;     
-  max-height: 380px;     
-  overflow: auto;
+}
+.page-inbound .seller-multi .panel-head .head-actions {
+  display: flex;
+  gap: 8px;
+}
+.seller-multi .panel-head .head-actions .btn {
+  min-width: 64px;
 }
 
+/* 类型：出品人选项列表 | 格式：可滚动列表 | 影响文件：list.html、inbound.html */
+.seller-multi .opt-list {
+  flex: 1 1 auto;
+  min-height: var(--seller-opt-list-min-h);
+  max-height: calc(var(--seller-panel-max-h-desktop) - var(--seller-head-h));
+  overflow: auto;
+  padding: 6px 0;
+}
 
-/* 下拉组件-禁用项样式（list.html / inbound.html） */
-.seller-multi .opt input:disabled{
+/* 类型：出品人多选项行 | 格式：勾选 + 文本 | 影响文件：list.html、inbound.html */
+.seller-multi .opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.seller-multi .opt:hover {
+  background: #f9fafb;
+}
+
+/* 类型：出品人面板底部操作区 | 格式：右对齐按钮 | 影响文件：list.html、inbound.html */
+.seller-multi .panel-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 8px;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* 类型：出品人禁用项样式 | 格式：灰色文字/不可点 | 影响文件：list.html、inbound.html */
+.seller-multi .opt input:disabled {
   cursor: not-allowed;
 }
-/* 下拉组件-禁用项文字加深（list.html / inbound.html） */
-.seller-multi .opt input:disabled + span{
-  
+.seller-multi .opt input:disabled + span {
   color: #babfc9;
-  opacity: 0.9;          
+  opacity: 0.9;
 }
-
-
-/* 下拉组件-附属描述（list.html / inbound.html） */
-.seller-multi .opt .muted{
+.seller-multi .opt .muted {
   color: #6b7280;
   opacity: 0.9;
 }
 
-
-.btn.sm{
-  height: 32px;
-  padding: 0 12px;
-  min-width: 64px;     
-  white-space: nowrap; 
+/* 类型：出品人面板在手机端高度重算 | 格式：max-width:640px 固定高度 | 影响文件：inbound.html（手机） */
+@media (max-width: 640px) {
+  .page-inbound .seller-multi .multi-panel {
+    max-height: none;
+    height: var(--seller-panel-h-mobile);
+  }
+  .page-inbound .seller-multi .opt-list {
+    min-height: calc(var(--seller-panel-h-mobile) - var(--seller-head-h));
+    height: calc(var(--seller-panel-h-mobile) - var(--seller-head-h));
+    max-height: none;
+  }
 }
 
+/* ========================= 入库页（page-inbound）专用样式 ========================= */
 
-/* 下拉组件-面板操作按钮（list.html / inbound.html） */
-.seller-multi .panel-head .head-actions .btn{
-  min-width: 64px;
+/* 类型：入库页中心容器 | 格式：宽度[800px居中] | 影响文件：inbound.html */
+.page-inbound .center-wrap {
+  max-width: var(--inbound-center-width);
+  margin: 24px auto;
 }
 
-
-:root{
-  
-  --inbound-center-width: 800px;         
-  --inbound-card-padding: 16px;          
-  --inbound-card-radius: 12px;           
-
-  
-  --inbound-input-height: 34px;          
-  --inbound-btn-height: 36px;            
-  --inbound-btn-sm-height: 32px;         
-  --inbound-btn-sm-minwidth: 64px;       
-
-  
-  --seller-panel-max-h-desktop: 70vh;    
-  --seller-head-h: 56px;                 
-  --seller-opt-list-min-h: 176px;        
-
-  --seller-panel-h-mobile: 360px;        
-}
-
-
-
-/* 入库页：居中容器覆盖（inbound.html） */
-.page-inbound .center-wrap{ max-width: var(--inbound-center-width); margin:24px auto; }
-/* 入库页：卡片圆角与内边距（inbound.html） */
-.page-inbound .card{
+/* 类型：入库页卡片 | 格式：内边距/圆角统一 | 影响文件：inbound.html */
+.page-inbound .card {
   padding: var(--inbound-card-padding);
   border-radius: var(--inbound-card-radius);
 }
 
-
-/* 入库页：输入/选择器高度覆盖（inbound.html） */
+/* 类型：入库页输入高度 | 格式：覆盖为 34px | 影响文件：inbound.html */
 .page-inbound .input,
-.page-inbound select{ height: var(--inbound-input-height); }
+.page-inbound select {
+  height: var(--inbound-input-height);
+}
 
-/* 入库页：按钮高度覆盖（inbound.html） */
-.page-inbound .btn{ height: var(--inbound-btn-height); }
-/* 入库页：小按钮高度与最小宽（inbound.html） */
-.page-inbound .btn.sm{
+/* 类型：入库页按钮高度 | 格式：覆盖为 36px | 影响文件：inbound.html */
+.page-inbound .btn {
+  height: var(--inbound-btn-height);
+}
+
+/* 类型：入库页小按钮 | 格式：高度32px 最小宽64px | 影响文件：inbound.html */
+.page-inbound .btn.sm {
   height: var(--inbound-btn-sm-height);
   min-width: var(--inbound-btn-sm-minwidth);
   white-space: nowrap;
 }
 
-
-/* 入库页：下拉面板高度覆盖（inbound.html 桌面） */
-.page-inbound .seller-multi .multi-panel{
-  display:flex; flex-direction:column;
-  max-height: var(--seller-panel-max-h-desktop);
-  overflow: visible;
+/* 类型：入库页出品人多选显示条 | 格式：高度/placeholder色 | 影响文件：inbound.html */
+.page-inbound .seller-multi .multi-display {
+  height: var(--inbound-input-height);
+  padding: 0 10px;
+  font-size: 14px;
+  color: #111827;
+  box-sizing: border-box;
 }
-/* 入库页：面板头布局（inbound.html） */
-.page-inbound .seller-multi .panel-head{
-  display:flex; align-items:center; gap:8px; padding:8px;
-}
-.page-inbound .seller-multi .panel-head .input{ flex:1 1 auto; }
-.page-inbound .seller-multi .panel-head .head-actions{ display:flex; gap:8px; }
-
-/* 入库页：列表高度计算（inbound.html 桌面） */
-.page-inbound .seller-multi .opt-list{
-  flex:1 1 auto;
-  min-height: var(--seller-opt-list-min-h);
-  max-height: calc(var(--seller-panel-max-h-desktop) - var(--seller-head-h));
-  overflow: auto;
-  padding:6px 0;
+.page-inbound .seller-multi .multi-display .placeholder {
+  color: #9ca3af;
+  font-size: 14px;
+  font-weight: 400;
 }
 
-
-@media (max-width: 640px){
-  .page-inbound .seller-multi .multi-panel{
-    max-height: none;
-    height: var(--seller-panel-h-mobile);
-  }
-  .page-inbound .seller-multi .opt-list{
-    min-height: calc(var(--seller-panel-h-mobile) - var(--seller-head-h));
-    height:     calc(var(--seller-panel-h-mobile) - var(--seller-head-h));
-    max-height: none;
-  }
+/* 类型：入库页输入 placeholder | 格式：灰色文字 | 影响文件：inbound.html */
+.page-inbound .input::placeholder {
+  color: #9ca3af;
+  font-size: 14px;
+  opacity: 1;
 }
 
+/* 类型：入库页原生下拉布局备用 | 格式：inline 排列 | 影响文件：inbound.html（若启用 seller-native） */
+.page-inbound .seller-native .inline {
+  display: flex;
+  gap: 8px;
+}
+.page-inbound .seller-native .inline .input {
+  flex: 1 1 auto;
+}
+.page-inbound .seller-native .inline .btn {
+  flex: 0 0 auto;
+}
 
-/* 入库页：备用原生下拉布局（inbound.html，若启用） */
-.page-inbound .seller-native .inline{ display:flex; gap:8px; }
-.page-inbound .seller-native .inline .input{ flex:1 1 auto; }
-.page-inbound .seller-native .inline .btn  { flex:0 0 auto; }
-
-
-/* 入库页：每行控件等宽（inbound.html） */
+/* 类型：入库页出品人容器等宽 | 格式：宽度 100% | 影响文件：inbound.html */
 .page-inbound .form-vertical .field > .seller-multi,
-.page-inbound .form-vertical .field > .seller-native{
+.page-inbound .form-vertical .field > .seller-native,
+.page-inbound .seller-multi {
   width: 100%;
 }
-
-.page-inbound .seller-multi{
-  width: 100%;
-}
-
-
-.page-inbound .seller-multi .multi-display{
+.page-inbound .seller-multi .multi-panel {
   width: 100%;
   box-sizing: border-box;
 }
 
+/* ========================= 通用模态框与轻提示 ========================= */
 
-.page-inbound .seller-multi .multi-panel{
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* 批次编辑：清除图片按钮响应式显示与间距 */
-[data-clear-img] { margin-top: 6px; }
-[data-clear-img] .clear-icon { display: none; font-size: 18px; font-weight: bold; line-height: 1; }
-[data-clear-img] .clear-text { display: inline; }
-
-@media (max-width: 768px) {
-  [data-clear-img] .clear-icon { display: inline; }
-  [data-clear-img] .clear-text { display: none; }
-}
-
-/* ===== settings dialog & toast (reusable) ===== */
-/* 通用遮罩+弹窗：在本系统所有设置页可复用 */
+/* 类型：通用模态遮罩 | 格式：fixed 居中 flex | 影响文件：设置对话框/通用弹框 */
 .modal {
   position: fixed;
   inset: 0;
-  display: none;              /* 由 JS 切换为 flex 显示 */
+  display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(0,0,0,.35);
+  background: rgba(0, 0, 0, 0.35);
   z-index: 999;
 }
+
+/* 类型：通用模态内容 | 格式：白底圆角阴影 | 影响文件：设置对话框 */
 .modal .modal-inner {
   background: #fff;
   border-radius: 10px;
   width: 360px;
   max-width: 90vw;
-  box-shadow: 0 10px 30px rgba(0,0,0,.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
-.modal .modal-inner.small { width: 360px; }
+.modal .modal-inner.small {
+  width: 360px;
+}
+
+/* 类型：模态头/体/脚布局 | 格式：分区 padding | 影响文件：设置对话框 */
 .modal .modal-header {
   font-weight: 700;
   padding: 12px 16px;
   border-bottom: 1px solid #eee;
 }
-.modal .modal-body { padding: 16px; }
+.modal .modal-body {
+  padding: 16px;
+}
 .modal .modal-footer {
   display: flex;
   gap: 10px;
@@ -1134,9 +1680,13 @@ th.col-select-left, td.col-select-left{ position: static; left: auto; z-index: a
   padding: 12px 16px;
   border-top: 1px solid #eee;
 }
-.modal .error { color: #d33; font-size: 12px; margin-top: 8px; }
+.modal .error {
+  color: #d33;
+  font-size: 12px;
+  margin-top: 8px;
+}
 
-/* 轻提示（toast），右下角自动消失 */
+/* 类型：右下角轻提示 toast | 格式：黑底白字淡入 | 影响文件：全系统通用轻提示 */
 .toast {
   position: fixed;
   right: 16px;
@@ -1144,47 +1694,257 @@ th.col-select-left, td.col-select-left{ position: static; left: auto; z-index: a
   min-width: 140px;
   max-width: 70vw;
   padding: 10px 14px;
-  background: rgba(0,0,0,.8);
+  background: rgba(0, 0, 0, 0.8);
   color: #fff;
   border-radius: 8px;
   font-size: 14px;
   opacity: 0;
   transform: translateY(8px);
-  transition: all .22s;
+  transition: all 0.22s;
   z-index: 1000;
 }
-.toast.show { opacity: 1; transform: translateY(0); }
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
 
+/* list.html: seller multi panel tighter padding */
+.opt--tight{ padding:6px 8px; }
 
-  /* 仅此块样式，可并入你的 style.css */
-  .toolbar { display: grid; grid-template-columns: 1fr; row-gap: 8px; margin-bottom: 8px; }
-  .toolbar .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .toolbar .spacer { flex: 1; }
-  :root { --ctl-h: 36px; } /* 统一控件高度 */
+.multi-filter-input{
+  width:100%;
+  padding:6px 8px;
+  border:1px solid #e5e7eb;
+  border-radius:6px;
+}
 
-  /* 统一高度：input/select/button/自定义多选显示区 */
-  .toolbar input[type="text"],
-  .toolbar input[type="date"],
-  .toolbar select,
-  .toolbar .btn,
-  .toolbar .seller-multi .multi-display {
-    height: var(--ctl-h);
+/* list.html: header filter dropdown panel */
+.auction-filter-panel{
+  display:none;
+  position:absolute;
+  z-index:9999;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:8px;
+  padding:8px;
+  min-width:160px;
+  max-height:260px;
+  overflow:auto;
+  font-size:12px;
+}
+
+.panel-footer{
+  margin-top:6px;
+  text-align:right;
+}
+
+/* list 的 img-preview 初始位置也归纳到 CSS */
+.img-preview{
+  left: 24px;
+  top: 120px;
+}
+
+/* list 空数据/加载/报错颜色 */
+.td-muted{ color:#6b7280; }
+.td-error{ color:#ef4444; }
+
+/* list 的种类下拉宽度 */
+#f-cat{ min-width:160px; }
+
+/* list 复选项 label */
+.chk-label{ display:block; margin:2px 0; cursor:pointer; }
+
+/* list “无匹配结果” padding */
+.muted-pad{ padding:6px 10px; }
+
+/* batch_edit.html: 无可选项的灰色文字 */
+.opt-muted{ color:#9ca3af; }
+
+/* list.html: col 宽度（原来写在 <col style="width:var(...)"> 上） */
+col.col-edit{ width: var(--w-edit); }
+col.col-code{ width: var(--w-code); }
+col.col-img{ width: var(--w-img); }
+col.col-auction{ width: var(--w-auction); }
+col.col-locbox{ width: var(--w-locbox); }
+col.col-cat{ width: var(--w-cat); }
+col.col-name{ width: var(--w-name); }
+col.col-seller{ width: var(--w-seller); }
+col.col-size{ width: var(--w-size); }
+col.col-sp{ width: var(--w-sp); }
+col.col-rp{ width: var(--w-rp); }
+col.col-acc{ width: var(--w-acc); }
+col.col-material{ width: var(--w-material); }
+col.col-seal{ width: var(--w-seal); }
+col.col-insc{ width: var(--w-insc); }
+col.col-desc{ width: var(--w-desc); }
+col.col-author{ width: var(--w-author); }
+col.col-op{ width: var(--w-op); }
+
+/* ========================= 出库页（outbound.html）专用样式 ========================= */
+
+.filters{ margin-bottom:16px; }
+
+.filter-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  align-items:center;
+  margin-bottom:8px;
+}
+
+.filter-item{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.filter-label{
+  font-size:13px;
+  color:#6b7280;
+}
+
+.checkbox-inline{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:14px;
+  color:#374151;
+  margin-right:16px;
+}
+.checkbox-inline input{ transform:scale(1.05); }
+
+.table-footer{
+  margin-top:8px;
+  font-size:13px;
+  color:#6b7280;
+  display:flex;
+  justify-content:flex-end;
+}
+
+/* 出库悬停面板（右下角固定） */
+.outbound-panel{
+  position:fixed;
+  right:16px;
+  bottom:16px;
+  z-index:40;
+  background:#111827;
+  color:#f9fafb;
+  padding:10px 12px;
+  border-radius:12px;
+  box-shadow:0 10px 25px rgba(15,23,42,0.45);
+  max-width:360px;
+}
+.outbound-info{
+  font-size:13px;
+  margin-bottom:6px;
+  white-space:nowrap;
+}
+.outbound-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  justify-content:flex-end;
+}
+.outbound-panel .btn.sm{
+  padding:2px 8px;
+  font-size:12px;
+  height:26px;
+  line-height:22px;
+}
+.outbound-panel .btn.primary{
+  background:#10b981;
+  border-color:#10b981;
+}
+
+/* 行选中高亮 */
+#tbody tr.selected{ background:#ecfeff; }
+
+/* 名称列允许换行显示（覆盖全局的 nowrap） */
+td.col-name, th.col-name{
+  white-space:normal;
+  word-break:break-all;
+}
+
+/* 出库页：缩略图尺寸 */
+#tbody img.thumb{
+  width:80px;
+  height:80px;
+  object-fit:cover;
+  display:block;
+  margin:0 auto;
+}
+
+/* 根据屏幕缩小优化位置 */
+@media (max-width:640px){
+  .outbound-panel{
+    left:8px;
+    right:8px;
+    bottom:8px;
+    max-width:none;
   }
-
-  /* 自定义外观，延续你原本的风格 */
-  .toolbar input[type="text"],
-  .toolbar input[type="date"],
-  .toolbar select {
-    padding: 6px 10px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: #fff;
+  .outbound-actions{
+    justify-content:space-between;
   }
-  .toolbar .btn { padding: 6px 10px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; cursor: pointer; }
-  .toolbar .btn.primary { border-color:#2563eb; background:#2563eb; color:#fff; }
-  .toolbar .btn.toggle { display:inline-flex; align-items:center; gap:6px; }
-  .toolbar .seller-multi { width: 320px; }
-  .toolbar #q { min-width: 280px; width: 420px; }
+}
 
-  /* 结果统计在行内右侧 */
-  #result-stats { color:#6b7280; }
+/* 出库页 colgroup 宽度（把 <col style="width:..."> 归纳到 class） */
+col.col-out-name{ width:220px; }
+
+/* ========================= 拍卖会详情页（detail.html） ========================= */
+
+/* 详情页卡片宽度限制 */
+.auction-detail-card {
+  max-width: 900px;
+}
+
+/* 第二块卡片与上方间距 */
+.auction-detail-card + .auction-detail-card {
+  margin-top: 16px;
+}
+
+/* 专场表格列宽 */
+.th-order { width: 70px; }
+.th-drag  { width: 60px; }
+.th-date  { width: 200px; }
+.th-op    { width: 230px; }
+
+/* 拖拽抓手 */
+.drag-handle {
+  cursor: move;
+  font-size: 18px;
+}
+
+/* 专场操作按钮（小号） */
+.section-actions .btn {
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.section-actions .btn + .btn {
+  margin-left: 4px;
+}
+
+/* 删除按钮强调 */
+.section-actions .btn.section-delete {
+  margin-left: 8px;
+  background: #e74c3c;
+  color: #fff;
+  border-color: #e74c3c;
+}
+
+/* 无专场占位行 */
+.section-empty {
+  text-align: center;
+  color: #888;
+}
+
+/* 新增专场标题 */
+.section-add-title {
+  margin-top: 12px;
+}
+
+/* detail.html：底部按钮间距（替代 inline margin-left） */
+.detail-actions .btn + .btn,
+.detail-actions .btn + a.btn{
+  margin-left: 8px;
+}
