@@ -80,80 +80,223 @@
   };
 
 
-  // —— 材质工具 ——
-  const Material = (function(){
-    let _opts = null; // {colors:[], materials:[], shapes:[]}
-    // 加载枚举（仅一次缓存）
-    async function load(){
-      if (_opts) return _opts;
-      try{
-        const d = await getJSON('/api/settings/material_options');
+// —— 材质工具 ——
+const Material = (function(){
+  // 统一使用中文分组：颜色 / 材质 / 形制（形态按钮也映射到形制）
+  let _opts = {"颜色":[], "材质":[], "形制":[]};
+  const _groupOrder = ["颜色","材质","形制"];
+  let _index = new Map(); // name -> {group, idx}
+
+  // 去重但保留顺序
+  function uniqKeepOrder(arr){
+    const out = [];
+    const seen = new Set();
+    (arr||[]).forEach(v=>{
+      const s = String(v||'').trim();
+      if(!s) return;
+      if(seen.has(s)) return;
+      seen.add(s);
+      out.push(s);
+    });
+    return out;
+  }
+
+  async function load(){
+    try{
+      const d = await getJSON('/api/settings/material_options');
 
       // 兼容：后端可能返回中文键（颜色/材质/形制）或英文字段（colors/materials/shapes）
       const cn_colors    = d['颜色'] || d['顏色'] || [];
       const cn_materials = d['材质'] || d['材質'] || [];
       const cn_shapes    = d['形制'] || [];
+
       _opts = {
-        colors:    d.colors    || cn_colors,
-        materials: d.materials || cn_materials,
-        shapes:    d.shapes    || cn_shapes
+        "颜色":    d.colors    || cn_colors,
+        "材质":    d.materials || cn_materials,
+        "形制":    d.shapes    || cn_shapes
       };
-    }catch(e){
-      // 兜底默认
-      _opts = {
-        colors:    ['水墨','设色','油彩'],
-        materials: ['纸本','绢本','洒金纸本'],
-        shapes:    ['镜心','立轴','镜框','手卷','卡纸','册页','扇面','成扇']
-      };
-    }
-    return _opts;
-  }
-    // 解析与序列化
-    function parse(txt){
-      if (!txt) return [];
-      return String(txt).replace(/，|、/g, ',').split(',').map(s=>s.trim()).filter(Boolean);
-    }
-    function serialize(list){
-      return (list||[]).filter(Boolean).join(', ');
-    }
-    // 弹出小面板选择一次（颜色/材质/形态），回调返回拼接后的字符串，如“设色纸本立轴”
-    async function openAdder(anchorEl, onAdd){
-      const opts = await load();
-      const panel = document.createElement('div');
-      panel.className = 'mat-adder';
-      panel.innerHTML = `
-        <div class="mat-row">
-          <select id="mat_color"><option value="">颜色</option>${opts.colors.map(v=>`<option value="${v}">${v}</option>`).join('')}</select>
-          <select id="mat_material"><option value="">材质</option>${opts.materials.map(v=>`<option value="${v}">${v}</option>`).join('')}</select>
-          <select id="mat_shape"><option value="">形态</option>${opts.shapes.map(v=>`<option value="${v}">${v}</option>`).join('')}</select>
-        </div>
-        <div class="mat-actions">
-          <button type="button" class="btn sm" data-act="cancel">取消</button>
-          <button type="button" class="btn sm primary" data-act="ok">添加</button>
-        </div>`;
-      document.body.appendChild(panel);
-      // 定位到按钮附近
-      try{
-        const R = anchorEl.getBoundingClientRect();
-        panel.style.position='fixed';
-        panel.style.left = Math.min(window.innerWidth-10, Math.max(10, R.left)).toFixed(0)+'px';
-        panel.style.top  = Math.min(window.innerHeight-10, Math.max(10, R.bottom+6)).toFixed(0)+'px';
-      }catch{}
-      function close(){ panel.remove(); document.removeEventListener('click', onDoc, true); }
-      function onDoc(e){ if (!panel.contains(e.target) && e.target!==anchorEl) close(); }
-      document.addEventListener('click', onDoc, true);
-      panel.querySelector('[data-act="cancel"]').addEventListener('click', close);
-      panel.querySelector('[data-act="ok"]').addEventListener('click', ()=>{
-        const c = panel.querySelector('#mat_color').value.trim();
-        const m = panel.querySelector('#mat_material').value.trim();
-        const s = panel.querySelector('#mat_shape').value.trim();
-        const t = `${c}${m}${s}`.trim();
-        if (t) { try{ onAdd && onAdd(t); }catch{} }
-        close();
+
+      // 去重但保留后端顺序
+      _groupOrder.forEach(g=>{
+        _opts[g] = uniqKeepOrder(_opts[g] || []);
       });
+
+      // 构建排序索引（用于排序 tokens）
+      _index = new Map();
+      _groupOrder.forEach(g=>{
+        const arr = _opts[g] || [];
+        arr.forEach((name, idx)=>{
+          _index.set(String(name||'').trim(), {group:g, idx});
+        });
+      });
+
+      return _opts;
+    }catch(e){
+      // 兜底默认（也按固定顺序）
+      _opts = {
+        "颜色": ['水墨','设色','油彩'],
+        "材质": ['纸本','绢本','洒金纸本'],
+        "形制": ['镜心','立轴','镜框','手卷','卡纸','册页','扇面','成扇']
+      };
+      _index = new Map();
+      _groupOrder.forEach(g=>{
+        (_opts[g]||[]).forEach((name, idx)=>{
+          _index.set(String(name||'').trim(), {group:g, idx});
+        });
+      });
+      return _opts;
     }
-    return { load, parse, serialize, openAdder };
-  })();
+  }
+
+  // 按 material_options（后端返回的顺序）排序 + 去重
+  function sortTokens(tokens){
+    const list = uniqKeepOrder(tokens || []);
+
+    const gRank = new Map(_groupOrder.map((g,i)=>[g,i]));
+    function key(v){
+      const info = _index.get(v);
+      if(info){
+        return [gRank.get(info.group), info.idx, v];
+      }
+      return [999, 999999, v];
+    }
+
+    list.sort((a,b)=>{
+      const ka = key(a), kb = key(b);
+      if(ka[0] !== kb[0]) return ka[0] - kb[0];
+      if(ka[1] !== kb[1]) return ka[1] - kb[1];
+      return String(ka[2]).localeCompare(String(kb[2]));
+    });
+
+    return list;
+  }
+
+  // 解析与序列化：数据库里统一保存成 “水墨、纸本、立轴” 这种
+  function parse(txt){
+    if (!txt) return [];
+    const arr = String(txt)
+      .replace(/，/g, ',')
+      .replace(/、/g, ',')
+      .split(',')
+      .map(s=>s.trim())
+      .filter(Boolean);
+    return sortTokens(arr);
+  }
+
+  function serialize(list){
+    const arr = sortTokens(list || []);
+    return arr.join('、');
+  }
+
+  // 弹出复选框面板：先点“颜色/材质/形态(形制)”切换组，下方是复选框；点“添加”回调 tokens 数组
+  async function openAdder(anchorEl, onAddTokens){
+    await load();
+
+    // 关闭旧的
+    document.querySelectorAll('.mat-adder').forEach(x=>x.remove());
+
+    const panel = document.createElement('div');
+    panel.className = 'mat-adder';
+    panel.style.position = 'fixed';
+    panel.style.width = '300px';
+    panel.style.zIndex = '9999';
+
+    panel.innerHTML = `
+      <div class="mat-row" style="display:flex; gap:8px; align-items:center;">
+        <button type="button" class="btn sm" data-g="颜色">颜色</button>
+        <button type="button" class="btn sm" data-g="材质">材质</button>
+        <button type="button" class="btn sm" data-g="形制">形态</button>
+      </div>
+
+      <div class="mat-body" style="margin-top:10px; max-height:240px; overflow:auto; padding-right:6px;"></div>
+
+      <div class="mat-actions" style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+        <button type="button" class="btn sm" data-act="cancel">取消</button>
+        <button type="button" class="btn sm primary" data-act="ok">添加</button>
+      </div>
+    `;
+
+    document.body.appendChild(panel);
+
+    // 定位到按钮附近
+    try{
+      const R = anchorEl.getBoundingClientRect();
+      const left = Math.min(window.innerWidth - 320, Math.max(10, R.left));
+      const top  = Math.min(window.innerHeight - 10, Math.max(10, R.bottom + 6));
+      panel.style.left = left.toFixed(0) + 'px';
+      panel.style.top  = top.toFixed(0) + 'px';
+    }catch{}
+
+    const selected = {"颜色":new Set(), "材质":new Set(), "形制":new Set()};
+    let active = "颜色";
+    const body = panel.querySelector('.mat-body');
+
+    function renderBody(){
+      const opts = _opts[active] || [];
+      if(!opts.length){
+        body.innerHTML = `<div class="muted">（无选项）</div>`;
+        return;
+      }
+      body.innerHTML = opts.map(v=>{
+        const name = String(v||'').trim();
+        const checked = selected[active].has(name) ? 'checked' : '';
+        return `
+          <label style="display:flex; gap:8px; align-items:center; padding:4px 0;">
+            <input type="checkbox" value="${name}" ${checked}>
+            <span>${name}</span>
+          </label>
+        `;
+      }).join('');
+    }
+
+    // 切换组
+    panel.querySelectorAll('button[data-g]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const g = btn.getAttribute('data-g');
+        active = (g === '形态') ? '形制' : g;
+        renderBody();
+      });
+    });
+
+    // 勾选
+    body.addEventListener('change', (ev)=>{
+      const ck = ev.target.closest('input[type="checkbox"]');
+      if(!ck) return;
+      const v = String(ck.value||'').trim();
+      if(!v) return;
+      if(ck.checked) selected[active].add(v);
+      else selected[active].delete(v);
+    });
+
+    function close(){
+      panel.remove();
+      document.removeEventListener('click', onDoc, true);
+    }
+    function onDoc(e){
+      if (!panel.contains(e.target) && e.target !== anchorEl) close();
+    }
+    document.addEventListener('click', onDoc, true);
+
+    panel.querySelector('[data-act="cancel"]').addEventListener('click', close);
+    panel.querySelector('[data-act="ok"]').addEventListener('click', ()=>{
+      const tokens = [
+        ...Array.from(selected["颜色"]),
+        ...Array.from(selected["材质"]),
+        ...Array.from(selected["形制"])
+      ];
+      const sorted = sortTokens(tokens);
+      if(sorted.length){
+        try{ onAddTokens && onAddTokens(sorted); }catch{}
+      }
+      close();
+    });
+
+    renderBody();
+  }
+
+  return { load, parse, serialize, sortTokens, openAdder };
+})();
+
 
   // 导出
   global.AU = { showToast, getJSON, sendJSON, checkPricePair, renameFileKeepExt, isHoverEnabled, Dict, Material };

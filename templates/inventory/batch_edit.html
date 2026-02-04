@@ -191,7 +191,7 @@ function renderRows(rows){
             <button type="button" class="btn sm primary" data-acc-ok>确定</button>
           </div>
         </div>
-        <input type="hidden" data-field="__accessories" value="${(row.accessories||[]).join('、')}" data-init="${(row.accessories||[]).join('、')}">
+        <input type="hidden" data-field="__accessories" value="${(row.accessories||[]).join(',')}" data-init="${(row.accessories||[]).join(',')}">
       </div>`;
 
     const boxInput = `<input class="input box-input" list="boxes_datalist" data-field="item_box_code"
@@ -291,12 +291,16 @@ function initAccComponent(tr){
   let snapshot = getChecked(panel);
 
   const open = ()=>{ snapshot = getChecked(panel); closeAllPanels(); requestAnimationFrame(()=> multi.classList.add('open')); };
-  display.addEventListener('click', open);
-  display.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
-  multi.querySelector('[data-acc-cancel]').addEventListener('click', ()=>{ setChecked(panel, snapshot); multi.classList.remove('open'); });
-  multi.querySelector('[data-acc-ok]').addEventListener('click', ()=>{
-    const list = getChecked(panel); hidden.value=list.join('、'); updateDisplay(multi, list); multi.classList.remove('open');
-  });
+    display.addEventListener('click', open);
+    display.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
+    multi.querySelector('[data-acc-cancel]').addEventListener('click', ()=>{ setChecked(panel, snapshot); multi.classList.remove('open'); });
+    multi.querySelector('[data-acc-ok]').addEventListener('click', ()=>{
+      const list = getChecked(panel);
+      hidden.value = list.join(',');
+      updateDisplay(multi, list);
+      multi.classList.remove('open');
+    });
+
 }
 function getChecked(panel){ return Array.from(panel.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value); }
 function setChecked(panel, list){

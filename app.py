@@ -187,31 +187,42 @@ def convert_excel_to_pdf(excel_path: Path, pdf_path: Path, *, open_visible: bool
 
     # 常量：Excel 中的类型 0=PDF
     xlTypePDF = 0
-    # 取整个工作簿（0）或选中区域（3）/指定页等，通常导出整个工作簿最贴近你的要求
     xlQualityStandard = 0  # 标准质量
     include_doc_props = True
-    ignore_print_areas = False  # 非常关键：False 时严格按你在每个工作表设置的打印区域导出
+    ignore_print_areas = False
     open_after_publish = False
 
-    # 初始化 COM
-    pythoncom.CoInitialize()
     excel = None
     workbook = None
+
+    pythoncom.CoInitialize()
     try:
-        excel = win32.gencache.EnsureDispatch("Excel.Application")
+        import gc
+        from win32com.client import DispatchEx
+
+        # 每次启动全新 Excel 实例，避免沿用上次状态
+        excel = DispatchEx("Excel.Application")
         excel.Visible = open_visible
+
+        # 降低弹窗/阻塞/状态残留
         excel.DisplayAlerts = False
+        excel.ScreenUpdating = False
+        excel.EnableEvents = False
+        try:
+            excel.AskToUpdateLinks = False
+        except Exception:
+            pass
 
         # 打开不更新外部链接，避免弹窗阻塞
         workbook = excel.Workbooks.Open(
             str(excel_path),
             UpdateLinks=0,      # 不更新外部链接
             ReadOnly=True,      # 以只读打开，避免被占用
-            IgnoreReadOnlyRecommended=True
+            IgnoreReadOnlyRecommended=True,
+            AddToMru=False
         )
 
         # 关键：按工作簿的打印设置导出为 PDF
-        # 如果你只想导出某些工作表，可以在这里选择 Sheets([...]).Select() 再调用 ActiveSheet.ExportAsFixedFormat。
         workbook.ExportAsFixedFormat(
             Type=xlTypePDF,
             Filename=str(pdf_path),
@@ -222,16 +233,26 @@ def convert_excel_to_pdf(excel_path: Path, pdf_path: Path, *, open_visible: bool
         )
 
     finally:
+        # 关闭顺序：先关 workbook 再 Quit Excel
         try:
             if workbook is not None:
                 workbook.Close(SaveChanges=False)
         except Exception:
             pass
+
         try:
             if excel is not None:
                 excel.Quit()
         except Exception:
             pass
+
+        workbook = None
+        excel = None
+        try:
+            gc.collect()
+        except Exception:
+            pass
+
         pythoncom.CoUninitialize()
 
     if not pdf_path.exists():
@@ -649,16 +670,29 @@ def create_app():
     def api_settings_material_options():
         session = get_session()
         try:
-            rows = session.query(MaterialOption).filter(MaterialOption.enabled == 1).all()
+            rows = (session.query(MaterialOption)
+                    .filter(MaterialOption.enabled == 1)
+                    .order_by(MaterialOption.group_name.asc(),
+                              MaterialOption.sort.asc(),
+                              MaterialOption.name.asc())
+                    .all())
+
             out = {"颜色": [], "材质": [], "形制": []}
+
+            # 去重但保留顺序
+            seen = {"颜色": set(), "材质": set(), "形制": set()}
+
             for r in rows:
                 g = (r.group_name or "").strip()
-                if g in out:
-                    out[g].append(r.name)
-            # 去重+排序（可选）
-            for k in out:
-                out[k] = sorted(list({x.strip() for x in out[k] if x and x.strip()}))
+                name = (r.name or "").strip()
+                if not name:
+                    continue
+                if g in out and name not in seen[g]:
+                    out[g].append(name)
+                    seen[g].add(name)
+
             return jsonify(out)
+
         finally:
             session.close()
 
@@ -1271,6 +1305,46 @@ def create_app():
     # 五、Items（物品）相关接口
     # ============================================================================
 
+    def normalize_accessories(session, acc_input):
+        """
+        acc_input 支持：
+          - ["共箱","底座"] 这种 list
+          - "共箱,底座" / "共箱、底座" 这种 str
+        返回：
+          (acc_list_sorted, csv_text) 其中 csv_text 用英文逗号保存到 items.item_accessories
+        """
+        # 取 sort 映射：{name: sort}
+        sort_rows = session.execute(text("SELECT accessory_name, sort FROM accessory_types")).fetchall()
+        sort_map = {}
+        for name, s in sort_rows:
+            try:
+                sort_map[str(name)] = int(s) if s is not None else 999999
+            except Exception:
+                sort_map[str(name)] = 999999
+
+        # 解析输入 -> list
+        if acc_input is None:
+            acc_list = []
+        elif isinstance(acc_input, str):
+            # 兼容英文逗号/顿号
+            tmp = acc_input.replace("、", ",")
+            acc_list = [s.strip() for s in tmp.split(",") if s.strip()]
+        else:
+            acc_list = [str(s).strip() for s in (acc_input or []) if str(s).strip()]
+
+        # 去重（保序）
+        seen = set()
+        uniq = []
+        for n in acc_list:
+            if n not in seen:
+                seen.add(n)
+                uniq.append(n)
+
+        # 按 accessory_types.sort 排序（同 sort 再按名字）
+        uniq.sort(key=lambda n: (sort_map.get(n, 999999), n))
+        csv_text = ",".join(uniq)  # 保存用英文逗号
+        return uniq, csv_text
+
     # [API] 生成下一个出品人编码（Excel 序）
     @app.route("/api/sellers/next-code")
     def api_sellers_next_code():
@@ -1350,7 +1424,7 @@ def create_app():
 
                 if acc_input is not None:
                     if isinstance(acc_input, str):
-                        acc_list = [s.strip() for s in acc_input.replace(",", "、").split("、") if s.strip()]
+                        acc_list = [s.strip() for s in acc_input.replace("、", ",").split(",") if s.strip()]
                     else:
                         acc_list = [str(s).strip() for s in (acc_input or []) if str(s).strip()]
                     acc_updates[code] = acc_list
@@ -1366,14 +1440,13 @@ def create_app():
 
             session.flush()
 
-            # 应用附属品（覆盖：先删后插）
+            # 应用附属品：写入 items.item_accessories（英文逗号保存）
             for code, acc_list in acc_updates.items():
-                session.execute(text("DELETE FROM item_accessories WHERE item_code = :c"), {"c": code})
-                for name in acc_list:
-                    session.execute(
-                        text("INSERT INTO item_accessories(item_code, accessory_name) VALUES(:c, :n)"),
-                        {"c": code, "n": name}
-                    )
+                it = session.get(Item, code)
+                if not it:
+                    continue
+                acc_sorted, csv_text = normalize_accessories(session, acc_list)
+                it.item_accessories = csv_text
 
             session.commit()
             return jsonify({"ok": True})
@@ -1424,30 +1497,16 @@ def create_app():
                        i.item_category,
                        i.item_image,
                        i.stockin_date,
-                       i.seller_code
+                       i.seller_code,
+                       i.item_accessories
                 FROM items i
                 WHERE i.stockin_date = :d AND i.seller_code = :s
                 ORDER BY i.item_code
             """), {"d": stockin_date, "s": seller_code}).mappings().all()
 
-            # 2) 附属品聚合
-            acc_rows = session.execute(text("""
-                SELECT ia.item_code, ia.accessory_name
-                FROM item_accessories ia
-                WHERE ia.item_code IN (
-                    SELECT i2.item_code FROM items i2
-                    WHERE i2.stockin_date = :d AND i2.seller_code = :s
-                )
-                ORDER BY ia.item_code, ia.accessory_name
-            """), {"d": stockin_date, "s": seller_code}).fetchall()
-
-            acc_map = {}
-            for code, name in acc_rows:
-                acc_map.setdefault(code, []).append(name)
-
             def to_row(m):
                 code = m["item_code"]
-                accessories = acc_map.get(code, [])
+                accessories, _csv = normalize_accessories(session, m.get("item_accessories") or "")
                 return {
                     "item_code": code,
                     "item_name": m["item_name"],
@@ -2065,11 +2124,7 @@ def create_app():
                 return jsonify({"error": "item 不存在"}), 404
 
             # 附属品列表
-            acc_rows = session.execute(
-                text("SELECT accessory_name FROM item_accessories WHERE item_code = :c"),
-                {"c": item_code}
-            ).fetchall()
-            accessories = [r[0] for r in acc_rows]
+            accessories, _csv = normalize_accessories(session, it.item_accessories or "")
 
             return jsonify({
                 "item_code": it.item_code,
@@ -2169,15 +2224,11 @@ def create_app():
             data = request.get_json(silent=True) or {}
             accessories = data.get("accessories", [])
             if isinstance(accessories, str):
-                accessories = [s.strip() for s in accessories.replace(",", "、").split("、") if s.strip()]
+                accessories = [s.strip() for s in accessories.replace("、", ",").split(",") if s.strip()]
 
             # 使用映射表覆盖保存
-            session.execute(text("DELETE FROM item_accessories WHERE item_code = :c"), {"c": item_code})
-            for name in accessories:
-                session.execute(
-                    text("INSERT INTO item_accessories(item_code, accessory_name) VALUES(:c, :n)"),
-                    {"c": item_code, "n": name}
-                )
+            acc_sorted, csv_text = normalize_accessories(session, accessories)
+            it.item_accessories = csv_text
 
             try:
                 log_op(session, "item", item_code, "update_accessories", before=None, after=str(accessories))
@@ -2384,6 +2435,9 @@ def create_app():
             end = start + page_size
             rows = all_rows[start:end]
 
+            # ===== 本页 items 的 item_code 列表（供拍卖会映射查询用）=====
+            codes = [r.item_code for r in rows if getattr(r, "item_code", None)]
+
             # ===== 批量读取出品人姓名映射（code -> name），来自 sellers 表 =====
             seller_codes = sorted({r.seller_code for r in rows if getattr(r, "seller_code", None)})
             seller_name_map = {}
@@ -2396,22 +2450,9 @@ def create_app():
                 for code, name in pairs:
                     seller_name_map[code] = name or code
 
-            # ===== 批量查询附属品并映射到 {item_code: [name, .]} =====
-            from create_database import ItemAccessory  # 已有模型
-
-            codes = [r.item_code for r in rows if getattr(r, "item_code", None)]
-            acc_map = {}
-            if codes:
-                pairs = (
-                    session.query(ItemAccessory.item_code, ItemAccessory.accessory_name)
-                    .filter(ItemAccessory.item_code.in_(codes))
-                    .order_by(ItemAccessory.item_code.asc(), ItemAccessory.accessory_name.asc())
-                    .all()
-                )
-                for c, name in pairs:
-                    acc_map.setdefault(c, []).append(name or "")
-
             # ===== 批量查询拍卖会回数映射 {item_code: [auction_order, ...]} =====
+
+
             auction_map = {}
             if codes:
                 try:
@@ -2435,6 +2476,7 @@ def create_app():
                 # 去重 + 排序
                 orders = sorted({o for o in orders if o is not None})
                 auction_label = "、".join(f"{o}回" for o in orders)
+                acc_list, _csv = normalize_accessories(session, x.item_accessories or "")
 
                 return {
                     "item_code": x.item_code,
@@ -2455,7 +2497,7 @@ def create_app():
                     "item_seal": x.item_seal,
                     "item_inscription": x.item_inscription,
                     "item_description": x.item_description,
-                    "accessories_text": "、".join(acc_map.get(x.item_code, [])),  # 来自 item_accessories
+                    "accessories_text": "、".join(acc_list),
                     "auction_label": auction_label,
                 }
 
@@ -2623,9 +2665,6 @@ def create_app():
                 # 幂等：视为已删除
                 return jsonify({"ok": True, "note": "already deleted"}), 200
 
-            # 1) 清理附属品映射表
-            session.execute(text("DELETE FROM item_accessories WHERE item_code = :c"), {"c": item_code})
-
             # 2) 可选：删除该物品图片目录（若存在）
             try:
                 subdir = os.path.join(UPLOAD_ROOT, item_code)
@@ -2675,7 +2714,8 @@ def create_app():
                 SELECT i.item_code,
                        i.item_name, i.item_size, i.item_location, i.item_box_code,
                        i.item_category, i.item_image, i.item_notes,
-                       i.starting_price, i.reserve_price, i.item_author
+                       i.starting_price, i.reserve_price, i.item_author, 
+                       i.item_accessories
                 FROM items i
                 WHERE i.stockin_date = :d AND i.seller_code = :s
             """), {"d": stockin_date, "s": seller_code}).mappings().all()
@@ -2695,12 +2735,8 @@ def create_app():
                 if has_info:
                     continue
 
-                # 有附属品记录也不可删
-                acc_cnt = session.execute(
-                    text("SELECT COUNT(*) FROM item_accessories WHERE item_code = :c"),
-                    {"c": code}
-                ).scalar() or 0
-                if int(acc_cnt) > 0:
+                acc_raw = r.get("item_accessories")
+                if acc_raw is not None and str(acc_raw).strip() != "":
                     continue
 
                 candidates.append(code)
@@ -2715,8 +2751,6 @@ def create_app():
                 it = session.get(Item, code)
                 if not it:
                     continue
-                # 附属品映射
-                session.execute(text("DELETE FROM item_accessories WHERE item_code = :c"), {"c": code})
                 # 批次件数回退
                 sb = session.get(StockBatch, {"stockin_date": it.stockin_date, "seller_code": it.seller_code})
                 if sb and sb.stockin_count is not None:
@@ -3144,15 +3178,23 @@ def create_app():
         bio_xlsx.seek(0)
 
         # 2) 写入系统临时目录，得到一个临时 .xlsx 路径（供 Excel COM 转换使用）
-        tmp_dir = Path(tempfile.gettempdir())
-        tmp_xlsx = tmp_dir / f"{stockin_date}_{seller_code}.xlsx"
+        import uuid
+        tmp_root = Path(tempfile.gettempdir()) / "auction_pdf_jobs"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+
+        job_dir = tmp_root / f"{stockin_date}_{seller_code}_{uuid.uuid4().hex}"
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        tmp_xlsx = job_dir / f"{stockin_date}_{seller_code}.xlsx"
+
         with open(tmp_xlsx, "wb") as f:
             f.write(bio_xlsx.read())
 
         # 3) 目标 PDF 永久保存目录：{BASE_DIR}/exports/pdf/
         export_dir = Path(BASE_DIR) / "exports" / "pdf"
         export_dir.mkdir(parents=True, exist_ok=True)
-        out_pdf = export_dir / f"{stockin_date}_{seller_code}.pdf"
+        dt = datetime.strptime(stockin_date, "%Y-%m-%d")
+        out_pdf = export_dir / f"{dt.strftime('%y%m%d')}_{seller_code}.pdf"
 
         # 4) 调用你提供的转换函数进行转换与保存
         #    注意：convert_excel_to_pdf 内部会严格按 Excel 打印区域导出 PDF（见 excel_to_pdf.py 文档）
@@ -3160,7 +3202,7 @@ def create_app():
 
         # 5) 清理临时 xlsx（尽量不留垃圾文件）
         try:
-            tmp_xlsx.unlink(missing_ok=True)
+            shutil.rmtree(job_dir, ignore_errors=True)
         except Exception:
             pass
 
@@ -3171,93 +3213,6 @@ def create_app():
         # 下载文件名：与旧逻辑一致（或保持清晰）
         download_name = out_pdf.name
         return bio_pdf, download_name
-
-    # ====== 新增：中文字体注册（一次性） ======
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-
-    def _get_cjk_font():
-        """
-        返回一个可显示中文的字体名；优先尝试系统/常见 CJK 字体；
-        若不可用，回退到内置 CID 字体 STSong-Light（无需外部字体文件）。
-        """
-        # 缓存到全局避免重复注册
-        global _CJK_FONT_NAME
-        try:
-            _CJK_FONT_NAME  # noqa
-        except NameError:
-            _CJK_FONT_NAME = None
-
-        if _CJK_FONT_NAME:
-            return _CJK_FONT_NAME
-
-        # 1) 优先尝试常见的可用字体（如已部署了 Noto / 思源）
-        candidates = [
-            # (字体内部名, 绝对路径或 None 仅按名尝试)
-            ("NotoSansCJKsc-Regular", "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf"),
-            ("SourceHanSansCN-Regular", "/usr/share/fonts/opentype/adobe-source-han-sans/SourceHanSansCN-Regular.otf"),
-            ("SourceHanSansCN-Regular", "/usr/share/fonts/opentype/source-han-sans/SourceHanSansCN-Regular.otf"),
-            ("PingFang SC", None),  # macOS
-            ("Microsoft YaHei", None),  # Windows
-            ("SimSun", None),  # Windows
-            ("WenQuanYi Zen Hei", None)
-        ]
-        for name, path in candidates:
-            try:
-                if path and os.path.exists(path):
-                    pdfmetrics.registerFont(TTFont(name, path))
-                    _CJK_FONT_NAME = name
-                    return _CJK_FONT_NAME
-                # 仅按字体名尝试（如果系统字体可被 freetype 找到）
-                pdfmetrics.registerFont(TTFont(name, name))
-                _CJK_FONT_NAME = name
-                return _CJK_FONT_NAME
-            except Exception:
-                pass
-
-        # 2) 回退到内置 CID 字体 —— 支持中文、无需字体文件
-        try:
-            from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-            pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
-            _CJK_FONT_NAME = 'STSong-Light'
-            return _CJK_FONT_NAME
-        except Exception:
-            # 兜底（不会显示中文，但至少不报错）
-            _CJK_FONT_NAME = 'Helvetica'
-            return _CJK_FONT_NAME
-
-    # ====== 新增：带“第 X / Y 页”的 Canvas ======
-    from reportlab.pdfgen import canvas as _rl_canvas
-
-    class NumberedCanvas(_rl_canvas.Canvas):
-        """在保存时为每一页画上“第 x / y 页”的页码"""
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._saved_page_states = []
-
-        def showPage(self):
-            self._saved_page_states.append(dict(self.__dict__))
-            self._startPage()
-
-        def save(self):
-            page_count = len(self._saved_page_states) + 1  # 最后一页未调用 showPage 时也要计数
-            for state in self._saved_page_states:
-                self.__dict__.update(state)
-                self._draw_page_number(page_count)
-                super().showPage()
-            # 最后一页
-            self._draw_page_number(page_count)
-            super().save()
-
-        def _draw_page_number(self, page_count):
-            font_name = _get_cjk_font()
-            self.setFont(font_name, 10)
-            self.setFillColorRGB(0.35, 0.35, 0.35)
-            # 页脚右下角：第 X / Y 页
-            w, h = self._pagesize
-            self.drawRightString(w - 36, 24, f"第 {self._pageNumber} / {page_count} 页")
-
 
     # ============================================================================
     # 六、Stock Batches（批次）相关接口

@@ -124,6 +124,7 @@ class Item(Base):
     item_author = Column(String(100), comment='作者')
     item_status = Column(String(50), ForeignKey('item_statuses.item_status'), comment='物品状态')
     item_notes = Column(Text, comment='备注')
+    item_accessories = Column(Text, comment='附属品（逗号分隔，如 共箱,底座）')
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -141,7 +142,6 @@ class Item(Base):
     status = relationship("ItemStatus", back_populates="items")
     stock_batch = relationship("StockBatch", back_populates="items", overlaps="seller")
     auction_items = relationship("AuctionItem", back_populates="item")
-    accessories = relationship("ItemAccessory", back_populates="item")
 
     # 新增的关系
     images = relationship("Image", back_populates="item", cascade="all, delete-orphan")
@@ -248,19 +248,6 @@ class AccessoryType(Base):
     __tablename__ = 'accessory_types'
     accessory_name = Column(String(100), primary_key=True, comment='附属品名称')
     sort = Column(Integer, nullable=False, default=0, comment='排序（越小越靠前）')
-    item_accessories = relationship("ItemAccessory", back_populates="accessory_type")
-
-
-
-class ItemAccessory(Base):
-    __tablename__ = 'item_accessories'
-
-    item_code = Column(String(50), ForeignKey('items.item_code'), primary_key=True, comment='内部编号')
-    accessory_name = Column(String(100), ForeignKey('accessory_types.accessory_name'), primary_key=True, comment='附属品名称')
-
-    item = relationship("Item", back_populates="accessories")
-    accessory_type = relationship("AccessoryType", back_populates="item_accessories")
-
 
 # ==================== 新增模型（本次补充） ====================
 

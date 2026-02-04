@@ -604,7 +604,7 @@ function renderRows(items){
 
     // —— 新增：与 batch_edit 同风格的“附属品”多选下拉 ——
     // 选项来源：全局 ACC_TYPES（来自 /api/settings/accessory_types）
-    // 内部用隐藏 input[data-field="__accessories"] 承载“、”连接后的值，保持与已有保存逻辑兼容
+    // 内部用隐藏 input[data-field="__accessories"] 承载“,连接后的值，保持与已有保存逻辑兼容
     const selAcc = (valStr)=> {
       const selected = (valStr||'').split(/[、,]/).map(s=>s.trim()).filter(Boolean);
       const all = (window.ACC_TYPES || []);
@@ -653,11 +653,23 @@ document.getElementById('tbody').addEventListener('click', (e)=>{
     const hid = mat.querySelector('input[data-field="item_material"]');
     const holder = mat.querySelector('.chips');
     AU.Material.openAdder(e.target, (t)=>{
-      const arr = AU.Material.parse(hid.value);
-      if (!arr.includes(t)) arr.push(t);
-      hid.value = AU.Material.serialize(arr);
-      holder.innerHTML = arr.length ? arr.map(s=>`<span class="chip" data-v="${s}">${s}<i data-x="${s}">×</i></span>`).join('') : '<span class="muted">（未选择）</span>';
-    });
+  const arr = AU.Material.parse(hid.value);
+
+  const tokens = (t || '')
+    .split(/[、,]/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  for (const tok of tokens){
+    if (!arr.includes(tok)) arr.push(tok);
+  }
+
+  hid.value = AU.Material.serialize(arr);
+  holder.innerHTML = arr.length
+    ? arr.map(s=>`<span class="chip" data-v="${s}">${s}<i data-x="${s}">×</i></span>`).join('')
+    : '<span class="muted">（未选择）</span>';
+});
+
     e.stopPropagation(); return;
   }
 }, true);
@@ -704,7 +716,7 @@ document.getElementById('tbody').addEventListener('click', (e)=>{
   function applySelection(){
     const vals = Array.from(wrap.querySelectorAll('.dd-body input[type="checkbox"]:checked')).map(c=>c.value);
     // 更新隐藏 input（与保存逻辑兼容）
-    const joined = vals.join('、');
+    const joined = vals.join(',');
     hid.value = joined;
     // 视图 chips
     view.innerHTML = vals.length ? vals.map(s=>`<span class="chip" data-v="${s}">${s}<i data-x="${s}">×</i></span>`).join('') : '<span class="muted">（未选择）</span>';
@@ -1784,7 +1796,7 @@ function renderSellerOptions(filter=''){
         if(e.target.matches('[data-act="apply"]')){
           const list = Array.from(wrap.querySelectorAll('.dd-opt input[type=checkbox]:checked')).map(i=>i.value);
           const hidden = wrap.querySelector('input[data-field="__accessories"]');
-          hidden.value = list.join('、');
+          hidden.value = list.join(',');
           renderChips(wrap.querySelector('.acc-view'), list);
           dd.style.display='none';
         }
@@ -1794,7 +1806,7 @@ function renderSellerOptions(filter=''){
           const cbs = wrap.querySelectorAll('.dd-opt input[type=checkbox]');
           cbs.forEach(cb=>{ if(cb.value===v) cb.checked=false; });
           const list = Array.from(wrap.querySelectorAll('.dd-opt input[type=checkbox]:checked')).map(i=>i.value);
-          wrap.querySelector('input[data-field="__accessories"]').value = list.join('、');
+          wrap.querySelector('input[data-field="__accessories"]').value = list.join(',');
           renderChips(wrap.querySelector('.acc-view'), list);
         }
       });

@@ -354,8 +354,23 @@ document.addEventListener('click', (e)=>{
 });
 document.getElementById('mat_add').addEventListener('click', (e)=>{
   AU.Material.openAdder(e.currentTarget, (t)=>{
-    if (!MAT_LIST.includes(t)){ MAT_LIST.push(t); renderMaterialChipsFromText(AU.Material.serialize(MAT_LIST)); }
-  });
+  const tokens = (t || '')
+    .split(/[、,]/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  let changed = false;
+  for (const tok of tokens){
+    if (!MAT_LIST.includes(tok)){
+      MAT_LIST.push(tok);
+      changed = true;
+    }
+  }
+  if (changed){
+    renderMaterialChipsFromText(AU.Material.serialize(MAT_LIST));
+  }
+});
+
 });
 /* 保存（主信息 + 附属品） */
   async function saveOnce(){
