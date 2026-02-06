@@ -16,6 +16,8 @@
       <a class="btn" href="{{ url_for('inventory_batches') }}">返回批次列表</a>
       <button class="btn hide-mobile" id="btn-export-xlsx">导出Excel</button>
       <button class="btn" id="btn-export-pdf">导出PDF</button>
+      <button class="btn" id="btn-label-print">打印编号</button>
+
 
       <!-- 悬停预览开关 -->
       <label class="btn toggle">
@@ -820,6 +822,61 @@ if (btnP) btnP.addEventListener('click', async () => {
 
 
 })();
+
+// ===== 打印编号（生产）：batch_edit -> token -> 打开 label_print =====
+(function bindLabelPrintButton(){
+  const btn = document.getElementById('btn-label-print');
+  if(!btn) return;
+
+  btn.addEventListener('click', async ()=>{
+    // 1) 收集当前批次 codes（与页面现有逻辑一致）
+    const codes = Array.from(document.querySelectorAll('#tbl tbody tr'))
+      .map(tr => (tr.dataset.code || '').trim())
+      .filter(Boolean);
+
+    if(!codes.length){
+      AU.showToast('当前批次没有可打印的编号', 'error');
+      return;
+    }
+
+    // 2) 移动端防拦截：先占坑打开窗口（和你导出 PDF 的策略一致）
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+    let popup = null;
+    if(isMobile){
+      popup = window.open('about:blank');
+    }
+
+    try{
+      // 3) POST /api/label_context_set 拿 token
+      const res = await fetch('/api/label_context_set', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ codes })
+      });
+      const d = await res.json().catch(()=> ({}));
+      if(!res.ok){
+        const msg = d.error || d.message || (`token 生成失败：${res.status}`);
+        throw new Error(msg);
+      }
+      const token = (d.token || '').trim();
+      if(!token) throw new Error('token 生成失败：服务端未返回 token');
+
+      // 4) 打开 label_print（生产页）
+      const url = `/inventory/batch/${encodeURIComponent(DATE)}/${encodeURIComponent(SELLER)}/label_print?token=${encodeURIComponent(token)}`;
+
+      if(isMobile){
+        if(popup && !popup.closed) popup.location.href = url;
+        else window.location.href = url;
+      }else{
+        window.open(url, '_blank');
+      }
+    }catch(e){
+      if(popup && !popup.closed) popup.close();
+      AU.showToast(e.message || String(e), 'error');
+    }
+  });
+})();
+
 
 /* 启动 */
 AU.Dict.loadAll().then(({categories, accessories, boxes, boxSet})=>{ CAT_OPTS=categories; ACC_OPTS=accessories; BOX_OPTS=boxes; BOX_SET=boxSet; }).then(load);

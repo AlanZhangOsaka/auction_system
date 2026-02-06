@@ -301,3 +301,610 @@ const Material = (function(){
   // 导出
   global.AU = { showToast, getJSON, sendJSON, checkPricePair, renameFileKeepExt, isHoverEnabled, Dict, Material };
 })(window);
+
+(function(){
+  const cfg = window.DEMO_CFG;
+
+    // 只在 label_print 页面运行：必须有 cfg 且必须有 #lb-root
+  if(!cfg || !document.getElementById("lb-root")){
+    return;
+  }
+
+  const apiBase = (cfg.apiBase) ? cfg.apiBase : "/api";
+  // token 允许从 URL 读取：/label_print?token=xxx
+    // 优先使用模板注入的 cfg.token；如果为空则用 URL 参数写入
+    try{
+      const qs = new URLSearchParams(window.location.search);
+      const urlToken = (qs.get("token") || "").trim();
+      if(urlToken){
+        cfg.token = cfg.token ? String(cfg.token).trim() : "";
+        if(!cfg.token){
+          cfg.token = urlToken;
+          window.DEMO_CFG.token = urlToken;
+        }
+      }
+    }catch(e){}
+
+
+  const COLS = cfg.cols;
+  const ROWS = cfg.rows;
+  const PER_PAGE = COLS * ROWS;
+
+  const PAGE_PX_W = 840;
+  const PAGE_PX_H = 1188;
+  const pxPerMm = PAGE_PX_W / cfg.pageWmm;
+  function mmToPx(mm){ return mm * pxPerMm; }
+
+  const root = document.getElementById("lb-root") || document.body;
+  const elPrefix = root.querySelector("#prefix");
+  const elCount = root.querySelector("#count");
+  const elPrefixView = root.querySelector("#prefixView");
+  const elCountView = root.querySelector("#countView");
+
+  const elStartHint = root.querySelector("#startHint");
+  const elPages = root.querySelector("#pages");
+  const elPaperStage = root.querySelector("#paperStage");
+
+  const btnResetStart = root.querySelector("#btnResetStart");
+  const btnClearSkips = root.querySelector("#btnClearSkips");
+
+  const navPrev = root.querySelector("#navPrev");
+  const navNext = root.querySelector("#navNext");
+
+  function clamp(n, min, max){
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function updateTopViews(){
+    if(elPrefixView) elPrefixView.textContent = (elPrefix && elPrefix.value) ? elPrefix.value : "-";
+    if(elCountView)  elCountView.textContent  = (elCount && elCount.value)  ? String(elCount.value) : "-";
+  }
+
+  // ===============================
+  // 缩放：自适应 + Ctrl滚轮
+  // ===============================
+  let baseFitScale = 1;
+  let userZoom = 1;
+
+  function applyPaperScale(){
+    const sticky = document.getElementById("stickyBar");
+    const stickyH = sticky ? sticky.getBoundingClientRect().height : 0;
+
+    const padding = 24;
+    const availH = Math.max(200, window.innerHeight - stickyH - padding);
+
+    let s = availH / PAGE_PX_H;
+    s = Math.min(1, Math.max(0.35, s));
+    baseFitScale = s;
+
+    const finalScale = clamp(baseFitScale * userZoom, 0.20, 3.00);
+    document.documentElement.style.setProperty("--paper-scale", String(finalScale));
+  }
+  window.addEventListener("resize", applyPaperScale);
+
+  function setupCtrlWheelZoom(){
+    if(!elPaperStage) return;
+
+    elPaperStage.addEventListener("wheel", (e) => {
+      if(!e.ctrlKey) return;
+      e.preventDefault();
+
+      const delta = e.deltaY;
+      const step = 0.08;
+      if(delta < 0){
+        userZoom *= (1 + step);
+      }else{
+        userZoom *= (1 - step);
+      }
+      userZoom = clamp(userZoom, 0.35, 2.50);
+      applyPaperScale();
+    }, { passive:false });
+  }
+
+  // ===============================
+  // 多页：左右三角切换（只显示当前页）
+  // ===============================
+  let currentPage = 0;
+  let lastActionPage = 0;
+
+  function syncNavUI(){
+    const hasMulti = state.pages > 1;
+
+    if(navPrev) navPrev.style.display = hasMulti ? "flex" : "none";
+    if(navNext) navNext.style.display = hasMulti ? "flex" : "none";
+
+    if(!hasMulti){
+      currentPage = 0;
+      return;
+    }
+
+    currentPage = clamp(currentPage, 0, state.pages - 1);
+
+    if(navPrev) navPrev.disabled = (currentPage <= 0);
+    if(navNext) navNext.disabled = (currentPage >= state.pages - 1);
+
+    // 只显示当前页
+    const papers = elPages.querySelectorAll(".paper");
+    papers.forEach(p => {
+      const pno = parseInt(p.dataset.page || "0", 10);
+      p.style.display = (pno === currentPage) ? "block" : "none";
+    });
+
+    // 切页后重新适配（避免高度变化/滚动影响）
+    applyPaperScale();
+
+    // 切页时把预览区滚动回顶部，避免“切到下一页但还在下面”的错觉
+    if(elPaperStage) elPaperStage.scrollTop = 0;
+  }
+
+  function goPrev(){
+    if(state.pages <= 1) return;
+    currentPage = clamp(currentPage - 1, 0, state.pages - 1);
+    syncNavUI();
+  }
+
+  function goNext(){
+    if(state.pages <= 1) return;
+    currentPage = clamp(currentPage + 1, 0, state.pages - 1);
+    syncNavUI();
+  }
+
+  if(navPrev) navPrev.addEventListener("click", goPrev);
+  if(navNext) navNext.addEventListener("click", goNext);
+
+  document.addEventListener("keydown", (e) => {
+    // 不要在浏览器打印对话框/输入框里抢按键
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+    if(tag === "input" || tag === "textarea") return;
+
+    if(e.key === "ArrowLeft") goPrev();
+    if(e.key === "ArrowRight") goNext();
+  });
+
+  const rowMajorIndex = (page, row, col) => page * PER_PAGE + row * COLS + col;
+  const idxToPageRowCol = (idx) => {
+    const page = Math.floor(idx / PER_PAGE);
+    const inPage = idx % PER_PAGE;
+    const row = Math.floor(inPage / COLS);
+    const col = inPage % COLS;
+    return { page, row, col };
+  };
+
+  let demoCodes = null; // Array<string> or null
+
+  let state = {
+    startIndex: null,
+    skipIndices: new Set(),
+    placedMap: new Map(),
+    pages: 1,
+    lastClickedIndex: null,
+  };
+
+function getPayload(){
+  const base = {
+    startNo: 1,
+    startIndex: state.startIndex == null ? 0 : state.startIndex,
+    skipIndices: Array.from(state.skipIndices),
+  };
+
+  if(!Array.isArray(demoCodes) || demoCodes.length === 0){
+    throw new Error("codes 未加载（token 模式下禁止使用 prefix/count）");
+  }
+
+  return { ...base, codes: demoCodes };
+}
+
+  async function apiPreview(){
+    const payload = getPayload();
+    const r = await fetch(`${apiBase}/preview`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload),
+      cache:"no-store"
+    });
+    if(!r.ok){ throw new Error("preview failed"); }
+    return await r.json();
+  }
+
+  function setStartHint(){
+    if(state.startIndex == null){
+      elStartHint.textContent = "未选择";
+      return;
+    }
+    const t = idxToPageRowCol(state.startIndex);
+    elStartHint.textContent = `第${t.page + 1}页 行${t.row + 1} 列${t.col + 1}`;
+  }
+
+  function applyPreviewResult(res){
+    state.pages = res.pages || 1;
+    state.placedMap.clear();
+
+    const placed = res.placed || [];
+    for(let i=0;i<placed.length;i++){
+      state.placedMap.set(placed[i].index, placed[i].code);
+    }
+  }
+
+  function buildPages(){
+    elPages.innerHTML = "";
+
+    const marginL = mmToPx(cfg.marginL);
+    const marginT = mmToPx(cfg.marginT);
+    const labelW = mmToPx(cfg.labelW);
+    const labelH = mmToPx(cfg.labelH);
+    const gapX = mmToPx(cfg.gapX);
+    const gapY = mmToPx(cfg.gapY);
+    const radiusPx = mmToPx(cfg.radius);
+
+    const colLabelY = Math.max(4, marginT * 0.35);
+    const rowLabelX = Math.max(4, marginL * 0.25);
+
+    for(let p=0;p<state.pages;p++){
+      const paper = document.createElement("div");
+      paper.className = "paper";
+      paper.dataset.page = String(p);
+
+      for(let c=0;c<COLS;c++){
+        const colTag = document.createElement("div");
+        colTag.className = "col-label";
+        const cx = marginL + c * (labelW + gapX) + labelW / 2;
+        colTag.style.left = `${cx}px`;
+        colTag.style.top = `${colLabelY}px`;
+        colTag.textContent = String(c + 1);
+        paper.appendChild(colTag);
+      }
+
+      for(let r=0;r<ROWS;r++){
+        const rowTag = document.createElement("div");
+        rowTag.className = "row-label";
+        const cy = marginT + r * (labelH + gapY) + labelH / 2;
+        rowTag.style.left = `${rowLabelX}px`;
+        rowTag.style.top = `${cy}px`;
+        rowTag.textContent = String(r + 1);
+        paper.appendChild(rowTag);
+      }
+
+      for(let r=0;r<ROWS;r++){
+        for(let c=0;c<COLS;c++){
+          const idx = rowMajorIndex(p, r, c);
+
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.dataset.index = String(idx);
+
+          const left = marginL + c * (labelW + gapX);
+          const top = marginT + r * (labelH + gapY);
+
+          cell.style.left = `${left}px`;
+          cell.style.top = `${top}px`;
+          cell.style.width = `${labelW}px`;
+          cell.style.height = `${labelH}px`;
+          cell.style.borderRadius = `${radiusPx}px`;
+
+          cell.addEventListener("click", (ev) => onCellClick(ev, idx));
+          paper.appendChild(cell);
+        }
+      }
+
+      elPages.appendChild(paper);
+    }
+  }
+
+  function addCodeToCell(cell, code){
+    const span = document.createElement("div");
+    span.className = "code";
+    span.textContent = code;
+
+    const numPart = String(code).split("_").slice(-1)[0];
+    const digits = /^\d+$/.test(numPart) ? numPart.length : 0;
+
+    cell.classList.remove("d3","d4");
+    if(digits >= 4){
+      cell.classList.add("d4");
+    }else if(digits >= 3){
+      cell.classList.add("d3");
+    }
+
+    cell.appendChild(span);
+  }
+
+  function paintCells(){
+    const cells = elPages.querySelectorAll(".cell[data-index]");
+    cells.forEach(cell => {
+      const idx = parseInt(cell.dataset.index, 10);
+
+      cell.classList.remove("occupied","skipped","start","d3","d4");
+      cell.innerHTML = "";
+
+      if(state.skipIndices.has(idx)){
+        cell.classList.add("skipped");
+        const x = document.createElement("div");
+        x.className = "x";
+        x.textContent = "X";
+        cell.appendChild(x);
+      }
+
+      const code = state.placedMap.get(idx);
+      if(code){
+        cell.classList.add("occupied");
+        addCodeToCell(cell, code);
+      }
+
+      if(state.startIndex === idx){
+        cell.classList.add("start");
+      }
+    });
+  }
+
+  function rangeIndices(a, b){
+    const start = Math.min(a, b);
+    const end = Math.max(a, b);
+    const arr = [];
+    for(let i=start;i<=end;i++){ arr.push(i); }
+    return arr;
+  }
+
+  function onCellClick(ev, idx){
+    lastActionPage = Math.floor(idx / PER_PAGE);
+    if(state.startIndex == null){
+      state.startIndex = idx;
+      state.lastClickedIndex = idx;
+      refreshPreview().catch((e)=>{ alert(String(e && e.message ? e.message : e)); console.error(e); });
+
+      return;
+    }
+
+    if(ev.shiftKey && state.lastClickedIndex != null){
+      const arr = rangeIndices(state.lastClickedIndex, idx);
+      const targetIsSkipped = state.skipIndices.has(idx);
+      for(const i of arr){
+        if(targetIsSkipped){
+          state.skipIndices.delete(i);
+        }else{
+          state.skipIndices.add(i);
+        }
+      }
+      state.lastClickedIndex = idx;
+      refreshPreview().catch((e)=>{ alert(String(e && e.message ? e.message : e)); console.error(e); });
+
+      return;
+    }
+
+    if(state.skipIndices.has(idx)){
+      state.skipIndices.delete(idx);
+    }else{
+      state.skipIndices.add(idx);
+    }
+    state.lastClickedIndex = idx;
+    refreshPreview().catch((e)=>{ alert(String(e && e.message ? e.message : e)); console.error(e); });
+
+  }
+
+  async function refreshPreview(){
+    if(state.startIndex == null){
+      state.placedMap.clear();
+      state.pages = 1;
+      currentPage = 0;
+      buildPages();
+      paintCells();
+      setStartHint();
+      syncNavUI();
+      return;
+    }
+
+    const res = await apiPreview();
+    applyPreviewResult(res);
+    buildPages();
+    paintCells();
+    setStartHint();
+
+    // 刷新后保持在“最后操作页”，避免在第2页打X后跳回第1页
+    currentPage = clamp(lastActionPage, 0, state.pages - 1);
+
+    syncNavUI();
+
+  }
+
+  if(btnResetStart){
+    btnResetStart.addEventListener("click", () => {
+      state.startIndex = null;
+      state.lastClickedIndex = null;
+      state.placedMap.clear();
+      state.pages = 1;
+      currentPage = 0;
+      lastActionPage = 0;
+      userZoom = 1;
+
+      buildPages();
+      paintCells();
+      setStartHint();
+      syncNavUI();
+    });
+  }
+
+  if(btnClearSkips){
+    btnClearSkips.addEventListener("click", () => {
+      state.skipIndices.clear();
+      refreshPreview().catch((e)=>{ alert(String(e && e.message ? e.message : e)); console.error(e); });
+
+    });
+  }
+
+  const btnPrintDirect = root.querySelector("#btnPrintDirect");
+
+  const afterPrintModal = document.getElementById("afterPrintModal");
+  const afterPrintClose = document.getElementById("afterPrintClose");
+
+  function openAfterPrintModal(){
+    if(afterPrintModal){
+      afterPrintModal.style.display = "flex";
+    }
+  }
+
+  function closePageSafe(){
+    // window.close 只有“脚本打开的窗口/标签页”才一定生效；这里做个兜底
+    try{ window.close(); }catch(e){}
+    setTimeout(() => { try{ window.close(); }catch(e){} }, 80);
+    setTimeout(() => { window.location.href = "about:blank"; }, 120);
+  }
+
+  if(afterPrintClose){
+    afterPrintClose.addEventListener("click", () => {
+      closePageSafe();
+    });
+  }
+
+
+if(btnPrintDirect){
+  btnPrintDirect.addEventListener("click", async () => {
+    if(state.startIndex == null){
+      alert("请先点击贴纸格子选择起点");
+      return;
+    }
+
+    // 防止重复触发
+    btnPrintDirect.disabled = true;
+
+    try{
+      const payload = getPayload();
+
+      const r = await fetch(`${apiBase}/print_label_pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await r.json();
+
+      if(!data || !data.success){
+        btnPrintDirect.disabled = false;
+        alert("打印失败：" + ((data && data.msg) ? data.msg : "未知错误"));
+        return;
+      }
+
+      // 成功：弹窗提示放纸 + 只允许关闭页面，避免多次触发打印
+      openAfterPrintModal();
+
+    }catch(e){
+      btnPrintDirect.disabled = false;
+      alert("打印失败：" + (e && e.message ? e.message : String(e)));
+    }
+  });
+}
+
+  function parseBatchFromCodes(codes){
+  if(!Array.isArray(codes) || codes.length === 0) return "-";
+  // 规则：取第一个码，去掉最后一个 _数字 部分
+  const parts = String(codes[0]).split("_");
+  if(parts.length >= 3) return parts.slice(0, -1).join("_");
+  return codes[0];
+}
+
+async function loadCodesDemo(){
+  const token = (window.DEMO_CFG && window.DEMO_CFG.token) ? String(window.DEMO_CFG.token).trim() : "";
+  if(!token){
+    // token 模式：没有 token 就不工作
+    alert("缺少 token，无法生成标签");
+    return false;
+  }
+
+  const url = `${apiBase}/label_context?token=${encodeURIComponent(token)}`;
+
+  const r = await fetch(url, { cache: "no-store" });
+  if(!r.ok){
+    alert("读取编号失败（token 无效或已过期）");
+    return false;
+  }
+
+  const data = await r.json();
+  if(!data || !Array.isArray(data.codes) || data.codes.length === 0){
+    alert("该 token 没有关联任何编号，无法生成标签");
+    return false;
+  }
+
+  demoCodes = data.codes;
+
+  // 只显示，不参与计算
+  if(elPrefixView) elPrefixView.textContent = parseBatchFromCodes(demoCodes);
+  if(elCountView) elCountView.textContent = String(demoCodes.length);
+
+  return true;
+}
+
+
+
+function setupPrintTipDrag(){
+  if(!elPrintTip || !elPrintTipDrag) return;
+
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let originLeft = 0, originTop = 0;
+
+  const onMove = (ev) => {
+    if(!dragging) return;
+    const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+    const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+
+    const pad = 12;
+    const tipW = elPrintTip.offsetWidth || 360;
+    const tipH = elPrintTip.offsetHeight || 420;
+
+    const left = clamp(originLeft + dx, pad, window.innerWidth - tipW - pad);
+    const top  = clamp(originTop  + dy, pad, window.innerHeight - tipH - pad);
+
+    elPrintTip.style.left = left + "px";
+    elPrintTip.style.top  = top + "px";
+  };
+
+  const onUp = () => {
+    dragging = false;
+    tipPinned = true;
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+  };
+
+  const onDown = (ev) => {
+    if(!isTipVisible()) return;
+    dragging = true;
+    const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+    const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+
+    startX = clientX;
+    startY = clientY;
+
+    originLeft = parseFloat(elPrintTip.style.left || "0") || elPrintTip.getBoundingClientRect().left;
+    originTop  = parseFloat(elPrintTip.style.top  || "0") || elPrintTip.getBoundingClientRect().top;
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, {passive:false});
+    document.addEventListener("touchend", onUp);
+    ev.preventDefault();
+  };
+
+  elPrintTipDrag.addEventListener("mousedown", onDown);
+  elPrintTipDrag.addEventListener("touchstart", onDown, {passive:false});
+}
+// init（token 模式：必须先拉到 codes 才允许进入）
+loadCodesDemo().then((ok) => {
+  if(!ok){
+    // 失败：不做任何初始化，避免进入“空预览”
+    return;
+  }
+
+  // token 成功：顶部显示已由 loadCodesDemo 设置
+  setupCtrlWheelZoom();
+
+  // 初次仅1页
+  applyPaperScale();
+  buildPages();
+  paintCells();
+  setStartHint();
+  syncNavUI();
+  });
+})();

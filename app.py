@@ -21,14 +21,11 @@ import os
 from werkzeug.utils import secure_filename
 import shutil
 import json
+
 # —— 导出所需 & 下载 ——
-from flask import send_file
 from pathlib import Path
 import tempfile
 import pythoncom
-import win32com.client as win32
-
-import io
 from datetime import datetime
 
 # 可选依赖：没装也能运行，但导出会报“缺依赖”的错误提示
@@ -47,6 +44,33 @@ try:
     from PIL import Image
 except Exception:
     Image = None
+
+import uuid
+from time import time
+
+from io import BytesIO
+from flask import request, jsonify, send_file
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+
+import subprocess
+
+LABEL_CONTEXT_STORE = {}  # token -> {"codes": [...], "created_at": ts}
+SUMATRA_PATH = r"D:\SumatraPDF\SumatraPDF.exe"
+PRINTER_NAME = "Kyocera 标签纸打印机"
+
+def _new_token():
+    return uuid.uuid4().hex
+
+def _store_label_context(codes):
+    token = _new_token()
+    LABEL_CONTEXT_STORE[token] = {
+        "codes": codes,
+        "created_at": time()
+    }
+    return token
+
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -362,6 +386,8 @@ def create_app():
     def inventory_batches():
         return render_template("inventory/batches.html")
 
+
+
     # [HTML] 在库管理 - 指定批次编辑页：templates/inventory/batch_edit.html
     @app.route("/inventory/batch/<stockin_date>/<seller_code>")
     def inventory_batch_edit(stockin_date, seller_code):
@@ -371,30 +397,228 @@ def create_app():
             seller_code=seller_code
         )
 
-    # [HTML] 在库管理 - 批次打印视图：templates/inventory/print_batch.html
-    @app.route("/inventory/print/batch/<stockin_date>/<seller_code>")
-    def inventory_print_batch(stockin_date, seller_code):
-        session = get_session()
+    @app.route("/api/label_context", methods=["GET"])
+    def api_label_context():
+        token = request.args.get("token", "").strip()
+        if token and token in LABEL_CONTEXT_STORE:
+            return jsonify({"codes": LABEL_CONTEXT_STORE[token]["codes"]})
+
+        # 兜底 demo，防止页面打不开
+        return jsonify({"codes": []}), 404
+
+    @app.route("/api/label_context_set", methods=["POST"])
+    def api_label_context_set():
+        data = request.get_json(force=True, silent=True) or {}
+        codes = data.get("codes")
+
+        if not isinstance(codes, list) or not all(isinstance(x, str) for x in codes):
+            return jsonify({"ok": False, "error": "codes must be a list of strings"}), 400
+
+        token = _store_label_context(codes)
+        return jsonify({"ok": True, "token": token})
+
+    @app.route("/api/preview", methods=["POST"])
+    def api_preview():
+        data = request.get_json(force=True, silent=True) or {}
+
+        codes = data.get("codes")
+        start_index = data.get("startIndex", 0)
+        skip_indices = data.get("skipIndices", [])
+
+        if not isinstance(codes, list) or not all(isinstance(x, str) for x in codes) or len(codes) == 0:
+            return jsonify({"error": "codes must be a non-empty list of strings"}), 400
+
         try:
-            items = _fetch_batch_items(session, stockin_date, seller_code)
-            seller_name = _fetch_seller_name(session, seller_code)
-            missing = _check_missing_images(items)
-            items = sort_items_by_code(items)
+            start_index = int(start_index)
+        except Exception:
+            start_index = 0
 
-            batch_code = _format_batch_code(stockin_date, seller_code)  # ← 新增
+        if start_index < 0:
+            start_index = 0
 
-            return render_template(
-                "inventory/print_batch.html",
-                stockin_date=stockin_date,
-                seller_code=seller_code,
-                seller_name=seller_name,
-                print_time=datetime.now().strftime("%Y-%m-%d %H:%M"),
-                items=items,
-                missing=missing,
-                batch_code=batch_code  # ← 新增
-            )
+        # 你的标签纸布局：9列 x 28行
+        COLS = 9
+        ROWS = 28
+        PER_PAGE = COLS * ROWS
+
+        # 跳过集合
+        skip_set = set()
+        if isinstance(skip_indices, list):
+            for x in skip_indices:
+                try:
+                    ix = int(x)
+                    if ix >= 0:
+                        skip_set.add(ix)
+                except Exception:
+                    pass
+
+        placed = []
+        code_i = 0
+        idx = start_index
+
+        # 依次放入 codes，遇到 skip 就跳过 index
+        while code_i < len(codes):
+            if idx in skip_set:
+                idx += 1
+                continue
+            placed.append({"index": idx, "code": codes[code_i]})
+            code_i += 1
+            idx += 1
+
+        max_idx = placed[-1]["index"] if placed else 0
+        pages = (max_idx // PER_PAGE) + 1
+
+        return jsonify({
+            "pages": pages,
+            "placed": placed
+        })
+
+
+    @app.route("/api/print_label_pdf", methods=["POST"])
+    def print_label_pdf():
+        data = request.get_json(force=True, silent=True) or {}
+
+        codes = data.get("codes")
+        start_index = data.get("startIndex", 0)
+        skip_indices = data.get("skipIndices", [])
+
+        if not isinstance(codes, list) or not all(isinstance(x, str) for x in codes) or len(codes) == 0:
+            return jsonify({"success": False, "msg": "codes must be a non-empty list of strings"}), 400
+
+        try:
+            start_index = int(start_index)
+        except Exception:
+            start_index = 0
+        if start_index < 0:
+            start_index = 0
+
+        # 1) 复用 /api/pdf 的生成逻辑：先生成 PDF 到内存（BytesIO）
+        COLS = 9
+        ROWS = 28
+        PER_PAGE = COLS * ROWS
+
+        page_w, page_h = A4  # points
+
+        marginL = 7 * mm
+        marginT = 7 * mm
+        labelW = 20 * mm
+        labelH = 10 * mm
+        gapX = 2 * mm
+        gapY = 0 * mm
+
+        skip_set = set()
+        if isinstance(skip_indices, list):
+            for x in skip_indices:
+                try:
+                    ix = int(x)
+                    if ix >= 0:
+                        skip_set.add(ix)
+                except Exception:
+                    pass
+
+        placed = []
+        code_i = 0
+        idx = start_index
+        while code_i < len(codes):
+            if idx in skip_set:
+                idx += 1
+                continue
+            placed.append((idx, codes[code_i]))
+            code_i += 1
+            idx += 1
+
+        max_idx = placed[-1][0] if placed else 0
+        pages = (max_idx // PER_PAGE) + 1
+
+        buf = BytesIO()
+        c = canvas.Canvas(buf, pagesize=A4)
+        c.setTitle("labels")
+        base_font = "Helvetica"
+
+        for p in range(pages):
+            page_start = p * PER_PAGE
+            page_end = (p + 1) * PER_PAGE
+
+            for (cell_index, code) in placed:
+                if not (page_start <= cell_index < page_end):
+                    continue
+
+                in_page = cell_index - page_start
+                r = in_page // COLS
+                col = in_page % COLS
+
+                x = marginL + col * (labelW + gapX)
+                y_top = page_h - marginT - r * (labelH + gapY)
+                y = y_top - labelH
+
+                num_part = str(code).split("_")[-1]
+                size = 8
+                if num_part.isdigit() and len(num_part) >= 4:
+                    size = 6
+                elif num_part.isdigit() and len(num_part) >= 3:
+                    size = 7
+
+                c.setFont(base_font, size)
+                tx = x + labelW / 2
+                ty = y + labelH / 2 - (size * 0.35)
+                c.drawCentredString(tx, ty, str(code))
+
+            c.showPage()
+
+        c.save()
+        buf.seek(0)
+        pdf_bytes = buf.getvalue()
+
+        # 2) 写入磁盘（关键：必须 close 文件句柄，否则 Sumatra 在 Windows 下可能读不到）
+        import os
+        import time
+        from pathlib import Path
+        import uuid
+
+        tmp_dir = Path(BASE_DIR) / "exports" / "_print_tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        pdf_path = tmp_dir / f"labels_{uuid.uuid4().hex}.pdf"
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        # 3) 双保险：校验文件存在且非空
+        if (not pdf_path.exists()) or pdf_path.stat().st_size <= 0:
+            return jsonify({"success": False, "msg": f"pdf write failed: {str(pdf_path)}"}), 500
+
+        # 极少数机器需要给文件系统一点点时间（可保留）
+        time.sleep(0.05)
+
+        # 4) 调用 Sumatra 静默打印（100% 不缩放）
+        cmd = [
+            SUMATRA_PATH,
+            "-print-to", PRINTER_NAME,
+            "-print-settings", "noscale",
+            str(pdf_path)
+        ]
+
+        try:
+            subprocess.run(cmd, check=True)
+            return jsonify({"success": True})
+        except Exception as e:
+            return jsonify({"success": False, "msg": str(e)}), 500
         finally:
-            session.close()
+            # 5) 打印后清理临时文件（如果被占用就留着，不影响下一次）
+            try:
+                os.remove(pdf_path)
+            except Exception:
+                pass
+
+    @app.route("/inventory/batch/<stockin_date>/<seller_code>/label_print")
+    def inventory_label_print_page(stockin_date, seller_code):
+        token = request.args.get("token", "").strip()
+        return render_template(
+            "inventory/label_print.html",
+            token=token,
+            cols=9,
+            rows=28
+        )
+
 
     # [HTML] 在库管理 - 单件编辑：templates/inventory/item_edit.html
     @app.route("/inventory/item/<item_code>")
@@ -3274,6 +3498,36 @@ def create_app():
             return jsonify({"ok": True, "total": len(items), "missing": missing})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            session.close()
+
+    # [API] 批次编号列表（给标签打印/预览用）
+    @app.route("/api/batches/<stockin_date>/<seller_code>/codes", methods=["GET"])
+    def api_batch_codes(stockin_date, seller_code):
+        session = get_session()
+        try:
+            seller_code = (seller_code or "").strip().upper()
+
+            items = _fetch_batch_items(session, stockin_date, seller_code)
+            # 尽量沿用你系统已有的排序（如果项目里已有这个函数）
+            try:
+                items = sort_items_by_code(items)
+            except Exception:
+                pass
+
+            codes = [it.get("item_code") for it in items if it.get("item_code")]
+            batch_code = _format_batch_code(stockin_date, seller_code)
+
+            return jsonify({
+                "ok": True,
+                "stockin_date": stockin_date,
+                "seller_code": seller_code,
+                "batch_code": batch_code,
+                "item_count": len(codes),
+                "codes": codes
+            })
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
         finally:
             session.close()
 

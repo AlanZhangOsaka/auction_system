@@ -5,3 +5,4 @@ exports/
 test_demo/
 *.pyc
 *.log
+backup/

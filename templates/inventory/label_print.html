@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>A4 内部编号贴纸</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div id="lb-root" class="wrap">
+    <section class="panel sticky-bar" id="stickyBar">
+      <div class="panel-row">
+        <div class="group">
+          <div class="label">批次</div>
+          <div class="value" id="prefixView">-</div>
+          <input id="prefix" type="hidden" value="250101_AB">
+        </div>
+
+        <div class="group">
+          <div class="label">编号个数</div>
+          <div class="value" id="countView">-</div>
+          <input id="count" type="hidden" value="40">
+        </div>
+
+        <div class="group grow">
+          <div class="label">起点</div>
+          <div class="value" id="startHint">未选择</div>
+        </div>
+
+        <button id="btnResetStart" class="btn">重新选择起点</button>
+        <button id="btnClearSkips" class="btn">清空所有跳过</button>
+        <button id="btnPrintDirect" class="btn primary">直接打印</button>
+      </div>
+    </section>
+
+    <section class="paper-wrap">
+      <div class="paper-stage" id="paperStage">
+        <button id="navPrev" class="nav-tri nav-left" type="button" aria-label="上一页">◀</button>
+        <button id="navNext" class="nav-tri nav-right" type="button" aria-label="下一页">▶</button>
+
+        <div id="pages"></div>
+      </div>
+    </section>
+  </div>
+
+    <div id="afterPrintModal" class="modal">
+    <div class="modal-inner small">
+      <div class="modal-header">打印已发送</div>
+      <div class="modal-body">
+        请在打印机纸盒放入纸张。<br>
+        如已放入，请点击“关闭页面”。
+      </div>
+      <div class="modal-footer">
+        <button id="afterPrintClose" class="btn primary" type="button">关闭页面</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    window.DEMO_CFG = {
+      apiBase: "/api",
+      token: "{{ token or '' }}",
+
+      cols: {{ cols|default(9) }},
+      rows: {{ rows|default(28) }},
+
+      pageWmm: 210,
+      pageHmm: 297,
+
+      marginL: 7,
+      marginR: 7,
+      marginT: 7,
+      marginB: 9,
+
+      labelW: 20,
+      labelH: 10,
+      gapX: 2,
+      gapY: 0,
+
+      radius: 2,
+
+      pdfFontSizeBase: 8,
+      pdfFontSize3: 7,
+      pdfFontSize4: 6
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+</body>
+</html>
