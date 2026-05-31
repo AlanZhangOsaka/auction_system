@@ -270,7 +270,8 @@ async function loadItem(){
   renderAccessories(ITEM.accessories||[]);
 
   // 材质（chips）
-  try{ renderMaterialChipsFromText(ITEM.item_material||''); }catch{}
+  await AU.Material.load();
+  renderMaterialChipsFromText(ITEM.item_material||'');
 
   // 图片预览
   if (ITEM.item_image){
@@ -342,7 +343,9 @@ let MAT_LIST = [];
 function renderMaterialChipsFromText(text){
   MAT_LIST = AU.Material.parse(text||'');
   const el = document.getElementById('mat_tokens');
-  el.innerHTML = MAT_LIST.map(v=>`<span class="chip" data-v="${v}">${v}<i data-x="${v}">×</i></span>`).join('');
+  el.innerHTML = MAT_LIST.length
+    ? MAT_LIST.map(v=>`<span class="chip" data-v="${v}">${v}<i data-x="${v}">×</i></span>`).join('')
+    : '<span class="muted">（未选择）</span>';
 }
 document.addEventListener('click', (e)=>{
   const x = e.target.closest('#mat_tokens i');
@@ -476,6 +479,7 @@ document.getElementById('btnBack').addEventListener('click', async ()=>{
 
 /* 启动 */
 (async function(){
+  await AU.Material.load();
   await loadDictionaries();
   await bindImagePicker();
   await loadItem();

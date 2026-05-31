@@ -589,16 +589,42 @@ def create_app():
         # 极少数机器需要给文件系统一点点时间（可保留）
         time.sleep(0.05)
 
-        # 4) 调用 Sumatra 静默打印（100% 不缩放）
-        cmd = [
-            SUMATRA_PATH,
-            "-print-to", PRINTER_NAME,
-            "-print-settings", "noscale",
-            str(pdf_path)
-        ]
+        # 4) 注入纸张类型后静默打印
+        import win32print
+        import win32con
+
+        def _print_with_mediatype(pdf_path_str, printer_name):
+            import win32print
+            import win32con
+            import win32api
+
+            # 用 OpenPrinter + PRINTER_ACCESS_USE 权限（不需要管理员）
+            hPrinter = win32print.OpenPrinter(
+                printer_name,
+                {"DesiredAccess": win32print.PRINTER_ACCESS_USE}
+            )
+            try:
+                props = win32print.GetPrinter(hPrinter, 2)
+                dm = props["pDevMode"]
+                dm.MediaType = 276
+                dm.Color     = 2
+                dm.Fields   |= win32con.DM_MEDIATYPE | win32con.DM_COLOR
+
+                # 用 win32api 打印，直接把 DevMode 传给打印作业
+                hJob = win32print.StartDocPrinter(hPrinter, 1, ("labels", None, "RAW"))
+            finally:
+                win32print.ClosePrinter(hPrinter)
+
+            cmd = [
+                SUMATRA_PATH,
+                "-print-to", printer_name,
+                "-print-settings", "noscale,resolution=600",
+                str(pdf_path_str)
+            ]
+            subprocess.run(cmd, check=True)
 
         try:
-            subprocess.run(cmd, check=True)
+            _print_with_mediatype(pdf_path, PRINTER_NAME)
             return jsonify({"success": True})
         except Exception as e:
             return jsonify({"success": False, "msg": str(e)}), 500
